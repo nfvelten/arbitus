@@ -53,53 +53,57 @@ async fn main() -> anyhow::Result<()> {
         .map(|p| Regex::new(p).unwrap_or_else(|_| panic!("invalid regex: {p}")))
         .collect();
 
-    let live = Arc::new(LiveConfig {
-        agents: config.agents,
-        block_patterns,
-    });
+    let live = Arc::new(LiveConfig::new(config.agents, block_patterns));
     let (config_tx, config_rx) = watch::channel(live);
 
-    // ── Hot-reload — polls config file mtime every 5s ─────────────────────────
+    // ── Hot-reload — SIGUSR1 for immediate reload, polls every 30s as fallback ──
     {
         let reload_path = config_path.clone();
         let tx = config_tx;
         tokio::spawn(async move {
+            #[cfg(unix)]
+            let mut sigusr1 = {
+                use tokio::signal::unix::{signal, SignalKind};
+                signal(SignalKind::user_defined1()).expect("failed to install SIGUSR1 handler")
+            };
+
             let mut last_modified = tokio::fs::metadata(&reload_path)
                 .await
                 .ok()
                 .and_then(|m| m.modified().ok());
-            let mut interval = tokio::time::interval(Duration::from_secs(5));
-            interval.tick().await; // consume the immediate first tick
+            let mut interval = tokio::time::interval(Duration::from_secs(30));
+            interval.tick().await; // consume immediate first tick
+
             loop {
+                // Wait for either the polling interval or a SIGUSR1 signal.
+                // On SIGUSR1 we reload immediately regardless of mtime.
+                #[cfg(unix)]
+                {
+                    enum Trigger { Timer, Signal }
+                    let trigger = tokio::select! {
+                        _ = interval.tick() => Trigger::Timer,
+                        _ = sigusr1.recv() => Trigger::Signal,
+                    };
+                    if matches!(trigger, Trigger::Signal) {
+                        eprintln!("[GATEWAY] SIGUSR1 received, reloading config...");
+                        do_reload(&reload_path, &tx);
+                        last_modified = tokio::fs::metadata(&reload_path)
+                            .await
+                            .ok()
+                            .and_then(|m| m.modified().ok());
+                        continue;
+                    }
+                }
+                #[cfg(not(unix))]
                 interval.tick().await;
+
                 let modified = tokio::fs::metadata(&reload_path)
                     .await
                     .ok()
                     .and_then(|m| m.modified().ok());
                 if modified.is_some() && modified != last_modified {
                     last_modified = modified;
-                    match Config::from_file(&reload_path) {
-                        Ok(new_cfg) => {
-                            let new_patterns: Vec<Regex> = new_cfg
-                                .rules
-                                .block_patterns
-                                .iter()
-                                .filter_map(|p| {
-                                    Regex::new(p)
-                                        .map_err(|e| eprintln!("[RELOAD] invalid regex '{p}': {e}"))
-                                        .ok()
-                                })
-                                .collect();
-                            let new_live = Arc::new(LiveConfig {
-                                agents: new_cfg.agents,
-                                block_patterns: new_patterns,
-                            });
-                            if tx.send(new_live).is_ok() {
-                                eprintln!("[GATEWAY] config reloaded from {reload_path}");
-                            }
-                        }
-                        Err(e) => eprintln!("[GATEWAY] config reload failed: {e}"),
-                    }
+                    do_reload(&reload_path, &tx);
                 }
             }
         });
@@ -124,11 +128,16 @@ async fn main() -> anyhow::Result<()> {
     let metrics = Arc::new(GatewayMetrics::new()?);
 
     match config.transport {
-        TransportConfig::Http { addr, upstream, session_ttl_secs, tls } => {
+        TransportConfig::Http { addr, upstream, session_ttl_secs, tls, circuit_breaker } => {
             eprintln!("[GATEWAY] HTTP mode | upstream={upstream} | addr={addr}");
+            let default_upstream = Arc::new(HttpUpstream::with_circuit_breaker(
+                &upstream,
+                circuit_breaker.threshold,
+                circuit_breaker.recovery_secs,
+            ));
             let gateway = Arc::new(McpGateway::new(
                 pipeline,
-                Arc::new(HttpUpstream::new(&upstream)),
+                default_upstream,
                 named_upstreams,
                 audit.clone(),
                 Arc::clone(&metrics),
@@ -160,13 +169,38 @@ async fn main() -> anyhow::Result<()> {
 fn build_audit_backend(cfg: &AuditConfig) -> anyhow::Result<Arc<dyn AuditLog>> {
     match cfg {
         AuditConfig::Stdout => Ok(Arc::new(StdoutAudit)),
-        AuditConfig::Sqlite { path } => {
+        AuditConfig::Sqlite { path, max_entries, max_age_days } => {
             eprintln!("[GATEWAY] SQLite audit at {path}");
-            Ok(Arc::new(SqliteAudit::new(path)?))
+            Ok(Arc::new(SqliteAudit::with_rotation(path, *max_entries, *max_age_days)?))
         }
         AuditConfig::Webhook { url, token } => {
             eprintln!("[GATEWAY] Webhook audit to {url}");
             Ok(Arc::new(WebhookAudit::new(url, token.clone())))
         }
+    }
+}
+
+fn do_reload(
+    reload_path: &str,
+    tx: &tokio::sync::watch::Sender<Arc<LiveConfig>>,
+) {
+    match Config::from_file(reload_path) {
+        Ok(new_cfg) => {
+            let new_patterns: Vec<Regex> = new_cfg
+                .rules
+                .block_patterns
+                .iter()
+                .filter_map(|p| {
+                    Regex::new(p)
+                        .map_err(|e| eprintln!("[RELOAD] invalid regex '{p}': {e}"))
+                        .ok()
+                })
+                .collect();
+            let new_live = Arc::new(LiveConfig::new(new_cfg.agents, new_patterns));
+            if tx.send(new_live).is_ok() {
+                eprintln!("[GATEWAY] config reloaded from {reload_path}");
+            }
+        }
+        Err(e) => eprintln!("[GATEWAY] config reload failed: {e}"),
     }
 }

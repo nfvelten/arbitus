@@ -130,11 +130,15 @@ check        "third call blocked (rate limit)" "$OUT" "rate limit"
 
 echo ""
 echo "━━━ 10. list_directory allowed for claude-code (not in denylist) ━━━"
+# Use a subdirectory within the allowed root that has no "secret"-matching filenames.
+# (A listing of /tmp/mcp-test contains secrets.txt, which the block_pattern "secret"
+#  would filter — that's correct behaviour, not a denylist failure.)
+mkdir -p /tmp/mcp-test/safe && echo "hello world" > /tmp/mcp-test/safe/readme.txt
 OUT=$(run_session "$(printf '%s\n%s\n%s\n' \
   '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"claude-code","version":"1.0.0"}}}' \
   '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
-  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_directory","arguments":{"path":"/tmp/mcp-test"}}}')")
-check "list_directory allowed for claude-code" "$OUT" "hello.txt"
+  '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list_directory","arguments":{"path":"/tmp/mcp-test/safe"}}}')")
+check "list_directory allowed for claude-code" "$OUT" "readme.txt"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

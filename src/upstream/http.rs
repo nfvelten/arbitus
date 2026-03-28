@@ -85,6 +85,14 @@ pub struct HttpUpstream {
 
 impl HttpUpstream {
     pub fn new(url: impl Into<String>) -> Self {
+        Self::with_circuit_breaker(url, 5, 30)
+    }
+
+    pub fn with_circuit_breaker(
+        url: impl Into<String>,
+        threshold: usize,
+        recovery_secs: u64,
+    ) -> Self {
         let client = ClientBuilder::new()
             .timeout(Duration::from_secs(30))
             .pool_max_idle_per_host(10)
@@ -93,7 +101,7 @@ impl HttpUpstream {
         Self {
             url: url.into(),
             client,
-            cb: Arc::new(CircuitBreaker::new(5, 30)),
+            cb: Arc::new(CircuitBreaker::new(threshold, recovery_secs)),
         }
     }
 }

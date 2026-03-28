@@ -118,12 +118,20 @@ async fn filter_if_tools_list(
     let Ok(msg) = serde_json::from_str::<Value>(line) else {
         return line.to_string();
     };
-    if msg["result"]["tools"].is_array() {
-        let agent = agent_id.lock().await.clone();
-        let filtered = gateway.filter_tools_response(&agent, msg);
-        return serde_json::to_string(&filtered).unwrap_or_else(|_| line.to_string());
-    }
-    line.to_string()
+
+    let agent = agent_id.lock().await.clone();
+
+    // tools/list: filter visible tools per policy
+    let msg = if msg["result"]["tools"].is_array() {
+        gateway.filter_tools_response(&agent, msg)
+    } else {
+        msg
+    };
+
+    // All responses: apply block_patterns to the upstream response body
+    let msg = gateway.filter_response(msg);
+
+    serde_json::to_string(&msg).unwrap_or_else(|_| line.to_string())
 }
 
 async fn write_line(stdout: &Arc<Mutex<tokio::io::Stdout>>, line: &str) {

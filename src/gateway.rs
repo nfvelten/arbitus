@@ -154,7 +154,8 @@ impl McpGateway {
 
     /// Applies block_patterns to an upstream response.
     /// If the response body contains a sensitive pattern, returns a sanitized error instead.
-    fn filter_response(&self, response: Value) -> Value {
+    /// Called by both HttpTransport (via `handle`) and StdioTransport (directly).
+    pub fn filter_response(&self, response: Value) -> Value {
         let patterns = {
             let cfg = self.config.borrow();
             if cfg.block_patterns.is_empty() {

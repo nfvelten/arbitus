@@ -103,6 +103,7 @@ impl Transport for HttpTransport {
             .route("/mcp", get(handle_sse))
             .route("/mcp", delete(handle_delete_session))
             .route("/metrics", get(handle_metrics))
+            .route("/health", get(handle_health))
             .with_state(state);
 
         if let Some(tls) = &self.tls {
@@ -169,34 +170,40 @@ async fn handle_mcp(
 ) -> impl IntoResponse {
     let method = msg["method"].as_str().unwrap_or("");
 
-    // initialize: validate api_key, create session
+    // initialize: resolve agent identity, validate api_key, create session
     if method == "initialize" {
-        let agent_name = msg["params"]["clientInfo"]["name"]
+        let claimed_name = msg["params"]["clientInfo"]["name"]
             .as_str()
             .unwrap_or("unknown");
 
-        if agent_name.len() > MAX_AGENT_ID_LEN {
+        if claimed_name.len() > MAX_AGENT_ID_LEN {
             return StatusCode::BAD_REQUEST.into_response();
         }
 
-        // API key validation — required when configured for this agent
-        {
+        // Key-based identity: if X-Api-Key is provided, the key IS the identity.
+        // The key maps to an agent name — clientInfo.name is ignored.
+        // If no key is provided but the agent requires one → 401.
+        let agent_name = {
             let cfg = state.config.borrow();
-            if let Some(policy) = cfg.agents.get(agent_name) {
-                if let Some(expected_key) = &policy.api_key {
-                    let provided = headers
-                        .get("x-api-key")
-                        .and_then(|v| v.to_str().ok())
-                        .unwrap_or("");
-                    if provided != expected_key {
-                        eprintln!("[AUTH] api_key mismatch for agent={agent_name}");
+            if let Some(provided_key) = headers.get("x-api-key").and_then(|v| v.to_str().ok()) {
+                match cfg.api_keys.get(provided_key) {
+                    Some(name) => name.clone(),
+                    None => {
+                        eprintln!("[AUTH] unknown api_key");
                         return StatusCode::UNAUTHORIZED.into_response();
                     }
                 }
+            } else {
+                // No key: use claimed name, but reject if the agent requires a key
+                if let Some(policy) = cfg.agents.get(claimed_name) {
+                    if policy.api_key.is_some() {
+                        eprintln!("[AUTH] api_key required for agent={claimed_name}");
+                        return StatusCode::UNAUTHORIZED.into_response();
+                    }
+                }
+                claimed_name.to_string()
             }
-        }
-
-        let agent_name = agent_name.to_string();
+        };
         let session_id = state.sessions.create(agent_name.clone()).await;
         eprintln!("[SESSION] created id={session_id} agent={agent_name}");
 
@@ -235,6 +242,17 @@ async fn handle_delete_session(
     } else {
         StatusCode::NOT_FOUND.into_response()
     }
+}
+
+async fn handle_health() -> impl IntoResponse {
+    use axum::http::StatusCode;
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "status": "ok",
+            "version": env!("CARGO_PKG_VERSION")
+        })),
+    )
 }
 
 async fn handle_metrics(State(state): State<Arc<HttpState>>) -> impl IntoResponse {

@@ -344,6 +344,109 @@ STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
     "http://localhost:${GATEWAY_PORT}/mcp")
 check_status_any "malformed JSON → 4xx" "$STATUS" "400" "422"
 
+# ══ NEW: /health endpoint ════════════════════════════════════════════════════
+
+echo ""
+echo "━━━ 19. /health endpoint ━━━"
+HEALTH=$(curl -s "http://localhost:${GATEWAY_PORT}/health")
+HEALTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:${GATEWAY_PORT}/health")
+check_status "health returns 200"     "$HEALTH_STATUS" "200"
+check        "health body status ok"  "$HEALTH" '"ok"'
+check        "health body has version" "$HEALTH" "version"
+
+# ══ NEW: key-based identity (key IS the identity, clientInfo.name ignored) ════
+
+echo ""
+echo "━━━ 20. key-based identity ━━━"
+# Sending correct key with a DIFFERENT claimed name → still resolves to secured-agent
+OUT=$(curl -s -D /tmp/mcp-headers.txt \
+    -H "Content-Type: application/json" \
+    -H "X-Api-Key: test-key-123" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"i-am-lying","version":"1.0.0"}}}' \
+    "http://localhost:${GATEWAY_PORT}/mcp")
+KB_SESSION=$(grep -i "mcp-session-id:" /tmp/mcp-headers.txt | awk '{print $2}' | tr -d '\r\n')
+check "key overrides claimed name → session created" "$OUT" "serverInfo"
+# The identity should be secured-agent (allowed: echo), not "i-am-lying" (unknown → blocked)
+OUT=$(mcp_post "$KB_SESSION" '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"echo","arguments":{"text":"hi"}}}')
+check "session acts as secured-agent (echo allowed)" "$OUT" "echo: hi"
+
+# ══ NEW: hot-reload via SIGUSR1 ════════════════════════════════════════════════
+
+echo ""
+echo "━━━ 21. config hot-reload via SIGUSR1 ━━━"
+RELOAD_CONFIG=$(mktemp --suffix=.yml)
+RELOAD_PORT=4001
+
+# Write initial config with "reload-blocker" as a block pattern
+cat > "$RELOAD_CONFIG" <<'YMLEOF'
+transport:
+  type: http
+  addr: "0.0.0.0:4001"
+  upstream: "http://localhost:3000/mcp"
+audit:
+  type: stdout
+agents:
+  cursor:
+    allowed_tools: [echo]
+    rate_limit: 100
+rules:
+  block_patterns:
+    - "reload-blocker"
+YMLEOF
+
+./target/debug/gateway "$RELOAD_CONFIG" > /dev/null 2>&1 &
+RELOAD_PID=$!
+wait_for_port $RELOAD_PORT
+
+# Initialize cursor on the reload gateway
+curl -s -D /tmp/reload-headers.txt \
+    -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"cursor","version":"1.0.0"}}}' \
+    "http://localhost:${RELOAD_PORT}/mcp" > /dev/null
+RELOAD_SESSION=$(grep -i "mcp-session-id:" /tmp/reload-headers.txt | awk '{print $2}' | tr -d '\r\n')
+
+# Verify the block pattern is active
+OUT=$(curl -s -H "Content-Type: application/json" -H "Mcp-Session-Id: $RELOAD_SESSION" \
+    -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"echo","arguments":{"text":"reload-blocker"}}}' \
+    "http://localhost:${RELOAD_PORT}/mcp")
+check "block pattern active before reload" "$OUT" "blocked"
+
+# Remove the block pattern from config
+cat > "$RELOAD_CONFIG" <<'YMLEOF'
+transport:
+  type: http
+  addr: "0.0.0.0:4001"
+  upstream: "http://localhost:3000/mcp"
+audit:
+  type: stdout
+agents:
+  cursor:
+    allowed_tools: [echo]
+    rate_limit: 100
+rules:
+  block_patterns: []
+YMLEOF
+
+# Re-initialize to get a fresh session (hot-reload keeps existing sessions)
+kill -USR1 "$RELOAD_PID"
+sleep 0.5  # give reload task time to process the signal
+
+curl -s -D /tmp/reload-headers.txt \
+    -H "Content-Type: application/json" \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"cursor","version":"1.0.0"}}}' \
+    "http://localhost:${RELOAD_PORT}/mcp" > /dev/null
+RELOAD_SESSION2=$(grep -i "mcp-session-id:" /tmp/reload-headers.txt | awk '{print $2}' | tr -d '\r\n')
+
+# Verify the block pattern is gone
+OUT=$(curl -s -H "Content-Type: application/json" -H "Mcp-Session-Id: $RELOAD_SESSION2" \
+    -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"echo","arguments":{"text":"reload-blocker"}}}' \
+    "http://localhost:${RELOAD_PORT}/mcp")
+check "block pattern removed after reload" "$OUT" "reload-blocker"
+
+kill "$RELOAD_PID" 2>/dev/null || true
+RELOAD_PID=""
+rm -f "$RELOAD_CONFIG"
+
 # ══ NEW: circuit breaker (last — kills dummy server) ══════════════════════════
 
 echo ""

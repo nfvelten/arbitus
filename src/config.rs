@@ -1,3 +1,4 @@
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -35,6 +36,9 @@ pub enum TransportConfig {
         session_ttl_secs: u64,
         /// Optional TLS — if present the server runs HTTPS, otherwise plain HTTP.
         tls: Option<TlsConfig>,
+        /// Circuit breaker for the upstream. Defaults to threshold=5, recovery=30s.
+        #[serde(default)]
+        circuit_breaker: CircuitBreakerConfig,
     },
     Stdio {
         server: Vec<String>,
@@ -54,9 +58,29 @@ impl Default for TransportConfig {
             upstream: default_upstream_url(),
             session_ttl_secs: default_session_ttl(),
             tls: None,
+            circuit_breaker: CircuitBreakerConfig::default(),
         }
     }
 }
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct CircuitBreakerConfig {
+    /// Number of consecutive failures before the circuit opens. Default: 5.
+    #[serde(default = "default_cb_threshold")]
+    pub threshold: usize,
+    /// Seconds to wait before probing the upstream again (half-open). Default: 30.
+    #[serde(default = "default_cb_recovery_secs")]
+    pub recovery_secs: u64,
+}
+
+impl Default for CircuitBreakerConfig {
+    fn default() -> Self {
+        Self { threshold: default_cb_threshold(), recovery_secs: default_cb_recovery_secs() }
+    }
+}
+
+fn default_cb_threshold() -> usize { 5 }
+fn default_cb_recovery_secs() -> u64 { 30 }
 
 fn default_addr() -> String {
     "0.0.0.0:4000".to_string()
@@ -79,6 +103,10 @@ pub enum AuditConfig {
     Sqlite {
         #[serde(default = "default_db_path")]
         path: String,
+        /// Max number of audit entries to keep. Oldest entries are pruned on each insert.
+        max_entries: Option<usize>,
+        /// Max age in days for audit entries. Older entries are pruned on each insert.
+        max_age_days: Option<u64>,
     },
     Webhook {
         url: String,
@@ -124,6 +152,49 @@ impl Config {
     pub fn from_file(path: &str) -> anyhow::Result<Self> {
         let s = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("could not read '{}': {}", path, e))?;
-        serde_yaml::from_str(&s).map_err(|e| anyhow::anyhow!("invalid config: {}", e))
+        let config: Self =
+            serde_yaml::from_str(&s).map_err(|e| anyhow::anyhow!("invalid config: {}", e))?;
+        config.validate()?;
+        Ok(config)
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        // Validate block_patterns are valid regexes
+        for pattern in &self.rules.block_patterns {
+            Regex::new(pattern)
+                .map_err(|e| anyhow::anyhow!("invalid block_pattern '{}': {}", pattern, e))?;
+        }
+
+        // Validate agent upstream references exist in upstreams map
+        for (agent, policy) in &self.agents {
+            if let Some(upstream_name) = &policy.upstream {
+                if !self.upstreams.contains_key(upstream_name) {
+                    return Err(anyhow::anyhow!(
+                        "agent '{}' references unknown upstream '{}'",
+                        agent,
+                        upstream_name
+                    ));
+                }
+            }
+        }
+
+        // Validate TLS files exist when TLS is configured
+        if let TransportConfig::Http { tls: Some(tls), .. } = &self.transport {
+            if !std::path::Path::new(&tls.cert).exists() {
+                return Err(anyhow::anyhow!("TLS cert file not found: {}", tls.cert));
+            }
+            if !std::path::Path::new(&tls.key).exists() {
+                return Err(anyhow::anyhow!("TLS key file not found: {}", tls.key));
+            }
+        }
+
+        // Validate circuit breaker threshold is non-zero
+        if let TransportConfig::Http { circuit_breaker: cb, .. } = &self.transport {
+            if cb.threshold == 0 {
+                return Err(anyhow::anyhow!("circuit_breaker.threshold must be > 0"));
+            }
+        }
+
+        Ok(())
     }
 }

@@ -8,4 +8,20 @@ use std::collections::HashMap;
 pub struct LiveConfig {
     pub agents: HashMap<String, AgentPolicy>,
     pub block_patterns: Vec<Regex>,
+    /// Reverse map: api_key → agent_name.
+    /// Used for key-based agent identity on `initialize`.
+    pub api_keys: HashMap<String, String>,
+}
+
+impl LiveConfig {
+    pub fn new(
+        agents: HashMap<String, AgentPolicy>,
+        block_patterns: Vec<Regex>,
+    ) -> Self {
+        let api_keys = agents
+            .iter()
+            .filter_map(|(name, p)| p.api_key.as_ref().map(|k| (k.clone(), name.clone())))
+            .collect();
+        Self { agents, block_patterns, api_keys }
+    }
 }

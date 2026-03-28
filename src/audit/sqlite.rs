@@ -12,6 +12,14 @@ pub struct SqliteAudit {
 
 impl SqliteAudit {
     pub fn new(path: &str) -> anyhow::Result<Self> {
+        Self::with_rotation(path, None, None)
+    }
+
+    pub fn with_rotation(
+        path: &str,
+        max_entries: Option<usize>,
+        max_age_days: Option<u64>,
+    ) -> anyhow::Result<Self> {
         let conn = Connection::open(path)?;
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS audit_log (
@@ -76,6 +84,26 @@ impl SqliteAudit {
                                 reason
                             ],
                         );
+                        // Rotate by entry count — keep only the newest N rows
+                        if let Some(max) = max_entries {
+                            let _ = c.execute(
+                                "DELETE FROM audit_log WHERE id NOT IN \
+                                 (SELECT id FROM audit_log ORDER BY id DESC LIMIT ?1)",
+                                params![max as i64],
+                            );
+                        }
+                        // Rotate by age — purge entries older than max_age_days
+                        if let Some(days) = max_age_days {
+                            let cutoff = SystemTime::now()
+                                .duration_since(SystemTime::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_secs() as i64
+                                - (days as i64 * 86400);
+                            let _ = c.execute(
+                                "DELETE FROM audit_log WHERE ts < ?1",
+                                params![cutoff],
+                            );
+                        }
                     }
                 })
                 .await
