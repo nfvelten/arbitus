@@ -4,7 +4,7 @@ version = "0.7.0"
 edition = "2024"
 description = "Security proxy for MCP (Model Context Protocol) — auth, rate limiting, payload filtering, and audit logging between AI agents and MCP servers"
 repository = "https://github.com/nfvelten/mcp-shield"
-license = "Apache-2.0"
+license = "MIT"
 keywords = ["mcp", "proxy", "security", "ai", "gateway"]
 categories = ["network-programming", "authentication"]
 
