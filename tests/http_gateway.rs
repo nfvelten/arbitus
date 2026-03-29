@@ -9,7 +9,10 @@ use serde_json::{Value, json};
 async fn initialize_returns_server_info_and_session() {
     let h = harness(DEFAULT_CONFIG).await;
     let (sid, body) = h.init("cursor").await;
-    assert!(body["result"]["serverInfo"].is_object(), "serverInfo missing");
+    assert!(
+        body["result"]["serverInfo"].is_object(),
+        "serverInfo missing"
+    );
     assert!(!sid.is_empty(), "session ID not assigned");
 }
 
@@ -111,7 +114,10 @@ async fn tools_list_hides_denied_tools() {
         !names.contains(&"delete_database"),
         "delete_database should be hidden from claude-code"
     );
-    assert!(names.contains(&"echo"), "echo should be visible to claude-code");
+    assert!(
+        names.contains(&"echo"),
+        "echo should be visible to claude-code"
+    );
 }
 
 // ── Policy enforcement ────────────────────────────────────────────────────────
@@ -157,7 +163,10 @@ async fn unknown_agent_is_blocked() {
         .json(Some(&sid), call_body("echo", json!({"text": "hi"})))
         .await;
     let msg = body.to_string().to_lowercase();
-    assert!(msg.contains("unknown"), "expected unknown agent error, got: {body}");
+    assert!(
+        msg.contains("unknown"),
+        "expected unknown agent error, got: {body}"
+    );
 }
 
 // ── Payload filtering ─────────────────────────────────────────────────────────
@@ -233,7 +242,9 @@ async fn api_key_wrong_key_returns_401() {
 #[tokio::test]
 async fn api_key_correct_key_creates_session() {
     let h = harness(DEFAULT_CONFIG).await;
-    let (sid, body) = h.init_with("secured-agent", &[("x-api-key", "test-key-123")]).await;
+    let (sid, body) = h
+        .init_with("secured-agent", &[("x-api-key", "test-key-123")])
+        .await;
     assert!(body["result"]["serverInfo"].is_object());
     assert!(!sid.is_empty());
 
@@ -328,7 +339,10 @@ async fn global_rate_limit_blocks_after_threshold() {
     }
     let body = h.json(Some(&sid), call).await;
     let msg = body.to_string().to_lowercase();
-    assert!(msg.contains("rate limit"), "expected rate limit error, got: {body}");
+    assert!(
+        msg.contains("rate limit"),
+        "expected rate limit error, got: {body}"
+    );
 }
 
 #[tokio::test]
@@ -342,7 +356,10 @@ async fn per_tool_rate_limit_blocks_after_threshold() {
     }
     let body = h.json(Some(&sid), call).await;
     let msg = body.to_string().to_lowercase();
-    assert!(msg.contains("rate limit"), "expected rate limit error, got: {body}");
+    assert!(
+        msg.contains("rate limit"),
+        "expected rate limit error, got: {body}"
+    );
 }
 
 #[tokio::test]
@@ -363,14 +380,19 @@ rules:
     }
     let body = h.json(Some(&sid), call).await;
     let msg = body.to_string().to_lowercase();
-    assert!(msg.contains("rate limit"), "expected IP rate limit, got: {body}");
+    assert!(
+        msg.contains("rate limit"),
+        "expected IP rate limit, got: {body}"
+    );
 }
 
 #[tokio::test]
 async fn rate_limit_headers_present_on_allowed_call() {
     let h = harness(DEFAULT_CONFIG).await;
     let (sid, _) = h.init("cursor").await;
-    let resp = h.post(Some(&sid), call_body("echo", json!({"text": "x"}))).await;
+    let resp = h
+        .post(Some(&sid), call_body("echo", json!({"text": "x"})))
+        .await;
     let headers = resp.headers();
     assert!(
         headers.contains_key("x-ratelimit-limit"),
@@ -419,9 +441,11 @@ async fn metrics_endpoint_tracks_outcomes() {
     let (sid, _) = h.init("cursor").await;
 
     // Generate an allowed call
-    h.json(Some(&sid), call_body("echo", json!({"text": "x"}))).await;
+    h.json(Some(&sid), call_body("echo", json!({"text": "x"})))
+        .await;
     // Generate a blocked call
-    h.json(Some(&sid), call_body("delete_database", json!({}))).await;
+    h.json(Some(&sid), call_body("delete_database", json!({})))
+        .await;
 
     let metrics = h
         .client
@@ -450,12 +474,7 @@ async fn metrics_endpoint_tracks_outcomes() {
 #[tokio::test]
 async fn health_endpoint_returns_ok() {
     let h = harness(DEFAULT_CONFIG).await;
-    let resp = h
-        .client
-        .get(h.url("/health"))
-        .send()
-        .await
-        .unwrap();
+    let resp = h.client.get(h.url("/health")).send().await.unwrap();
     assert_eq!(resp.status().as_u16(), 200);
     let body: serde_json::Value = resp.json().await.unwrap();
     assert_eq!(body["status"].as_str().unwrap(), "ok");
@@ -479,7 +498,10 @@ async fn sse_endpoint_returns_event_stream() {
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    assert!(ct.contains("text/event-stream"), "expected SSE content-type, got: {ct}");
+    assert!(
+        ct.contains("text/event-stream"),
+        "expected SSE content-type, got: {ct}"
+    );
 }
 
 // ── Edge cases ────────────────────────────────────────────────────────────────

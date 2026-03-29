@@ -124,7 +124,10 @@ async fn stdio_initialize_and_tools_list() {
         .map(|t| t["name"].as_str().unwrap_or(""))
         .collect();
 
-    assert!(tool_names.contains(&"read_file"), "read_file should be visible");
+    assert!(
+        tool_names.contains(&"read_file"),
+        "read_file should be visible"
+    );
     assert!(
         !tool_names.contains(&"write_file"),
         "write_file should be hidden (not in cursor's allowlist)"

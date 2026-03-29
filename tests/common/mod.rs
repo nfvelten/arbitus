@@ -198,10 +198,7 @@ impl Harness {
     }
 
     pub async fn init_with(&self, agent: &str, extra_headers: &[(&str, &str)]) -> (String, Value) {
-        let mut req = self
-            .client
-            .post(self.url("/mcp"))
-            .json(&init_body(agent));
+        let mut req = self.client.post(self.url("/mcp")).json(&init_body(agent));
         for (k, v) in extra_headers {
             req = req.header(*k, *v);
         }
