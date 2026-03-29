@@ -91,6 +91,7 @@ rules:
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[tokio::test]
+#[ignore = "requires npx and @modelcontextprotocol/server-filesystem (run locally)"]
 async fn stdio_initialize_and_tools_list() {
     if !npx_available() {
         eprintln!("skipping stdio tests: npx not available");
@@ -135,6 +136,7 @@ async fn stdio_initialize_and_tools_list() {
 }
 
 #[tokio::test]
+#[ignore = "requires npx and @modelcontextprotocol/server-filesystem (run locally)"]
 async fn stdio_allowed_tool_returns_result() {
     if !npx_available() {
         eprintln!("skipping stdio tests: npx not available");
@@ -162,6 +164,7 @@ async fn stdio_allowed_tool_returns_result() {
 }
 
 #[tokio::test]
+#[ignore = "requires npx and @modelcontextprotocol/server-filesystem (run locally)"]
 async fn stdio_tool_not_in_allowlist_is_blocked() {
     if !npx_available() {
         eprintln!("skipping stdio tests: npx not available");
@@ -192,6 +195,7 @@ async fn stdio_tool_not_in_allowlist_is_blocked() {
 }
 
 #[tokio::test]
+#[ignore = "requires npx and @modelcontextprotocol/server-filesystem (run locally)"]
 async fn stdio_unknown_agent_is_blocked() {
     if !npx_available() {
         eprintln!("skipping stdio tests: npx not available");
@@ -217,6 +221,7 @@ async fn stdio_unknown_agent_is_blocked() {
 }
 
 #[tokio::test]
+#[ignore = "requires npx and @modelcontextprotocol/server-filesystem (run locally)"]
 async fn stdio_sensitive_payload_is_blocked() {
     if !npx_available() {
         eprintln!("skipping stdio tests: npx not available");
@@ -243,6 +248,7 @@ async fn stdio_sensitive_payload_is_blocked() {
 }
 
 #[tokio::test]
+#[ignore = "requires npx and @modelcontextprotocol/server-filesystem (run locally)"]
 async fn stdio_rate_limit_blocks_after_threshold() {
     if !npx_available() {
         eprintln!("skipping stdio tests: npx not available");
