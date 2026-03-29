@@ -3,13 +3,13 @@ name = "mcp-shield"
 version = "0.7.0"
 edition = "2024"
 description = "Security proxy for MCP (Model Context Protocol) — auth, rate limiting, payload filtering, and audit logging between AI agents and MCP servers"
-repository = "https://github.com/nfvelten/mcp-gateway"
+repository = "https://github.com/nfvelten/mcp-shield"
 license = "Apache-2.0"
 keywords = ["mcp", "proxy", "security", "ai", "gateway"]
 categories = ["network-programming", "authentication"]
 
 [lib]
-name = "mcp_gateway"
+name = "mcp_shield"
 path = "src/lib.rs"
 
 [[bin]]
@@ -17,11 +17,11 @@ name = "dummy-server"
 path = "src/bin/dummy_server.rs"
 
 [[bin]]
-name = "gateway"
+name = "mcp-shield"
 path = "src/bin/gateway.rs"
 
 [[bin]]
-name = "audit"
+name = "mcp-shield-audit"
 path = "src/bin/audit.rs"
 
 [dependencies]

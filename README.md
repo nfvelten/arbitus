@@ -41,14 +41,14 @@ cargo install mcp-shield
 Or build from source (requires Rust 1.85+):
 
 ```sh
-git clone https://github.com/nfvelten/mcp-gateway
-cd mcp-gateway
+git clone https://github.com/nfvelten/mcp-shield
+cd mcp-shield
 cargo build --release
 ```
 
-Binaries will be at `target/release/gateway` and `target/release/audit`.
+Binaries will be at `target/release/mcp-shield` and `target/release/mcp-shield-audit`.
 
-Or download a pre-built binary from the [releases page](https://github.com/nfvelten/mcp-gateway/releases).
+Or download a pre-built binary from the [releases page](https://github.com/nfvelten/mcp-shield/releases).
 
 ### Docker
 
@@ -302,7 +302,7 @@ Payload sent on each request:
 Start the gateway:
 
 ```sh
-./gateway gateway.yml
+./mcp-shield gateway.yml
 ```
 
 Agents connect to `http://localhost:4000/mcp`. The gateway forwards allowed requests to the upstream MCP server.
@@ -446,7 +446,7 @@ curl "http://localhost:4000/dashboard?agent=cursor"
 Agent policies and block patterns reload from disk every 30 seconds automatically, or immediately on `SIGUSR1`:
 
 ```sh
-kill -USR1 $(pidof gateway)
+kill -USR1 $(pidof mcp-shield)
 ```
 
 No restart required. In-flight requests are not affected.
@@ -466,7 +466,7 @@ Every `tools/call` creates a span with `agent_id`, `method`, and `tool` attribut
 ```sh
 # Quick local test with Jaeger all-in-one
 docker run -p 4317:4317 -p 16686:16686 jaegertracing/all-in-one
-LOG_LEVEL=debug ./gateway gateway.yml
+LOG_LEVEL=debug ./mcp-shield gateway.yml
 open http://localhost:16686
 ```
 
@@ -476,10 +476,10 @@ Control log format and level via environment variables:
 
 ```sh
 # Structured JSON (production / log aggregators)
-LOG_FORMAT=json ./gateway gateway.yml
+LOG_FORMAT=json ./mcp-shield gateway.yml
 
 # Adjust log level (default: info)
-LOG_LEVEL=debug ./gateway gateway.yml
+LOG_LEVEL=debug ./mcp-shield gateway.yml
 ```
 
 ## Audit CLI
@@ -488,16 +488,16 @@ Query the audit log without opening SQLite directly:
 
 ```sh
 # Last 50 entries
-./audit gateway-audit.db
+./mcp-shield-audit gateway-audit.db
 
 # Only blocked requests in the last hour
-./audit gateway-audit.db --outcome blocked --since 1h
+./mcp-shield-audit gateway-audit.db --outcome blocked --since 1h
 
 # All activity from a specific agent
-./audit gateway-audit.db --agent cursor
+./mcp-shield-audit gateway-audit.db --agent cursor
 
 # Increase the row limit
-./audit gateway-audit.db --limit 200
+./mcp-shield-audit gateway-audit.db --limit 200
 ```
 
 Output:

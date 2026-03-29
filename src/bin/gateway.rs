@@ -1,4 +1,4 @@
-use mcp_gateway::{
+use mcp_shield::{
     audit::{
         fanout::FanoutAudit, sqlite::SqliteAudit, stdout::StdoutAudit, webhook::WebhookAudit,
         AuditLog,
