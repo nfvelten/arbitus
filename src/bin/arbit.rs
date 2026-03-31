@@ -21,7 +21,7 @@ use arbit::{
 };
 use clap::{Parser, Subcommand};
 use regex::Regex;
-use reqwest;
+
 use rusqlite::{Connection, types::Value};
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tokio::sync::watch;
