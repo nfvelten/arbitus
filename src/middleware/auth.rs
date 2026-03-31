@@ -144,11 +144,13 @@ mod tests {
         agents.insert("agent".to_string(), make_agent(None, vec!["write_*"], 60));
         let mw = make_mw(agents);
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("write_file"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("write_file")))
+                .await,
             Decision::Block { .. }
         ));
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("write_dir"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("write_dir")))
+                .await,
             Decision::Block { .. }
         ));
     }
@@ -159,7 +161,8 @@ mod tests {
         agents.insert("agent".to_string(), make_agent(None, vec!["write_*"], 60));
         let mw = make_mw(agents);
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("read_file"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("read_file")))
+                .await,
             Decision::Allow { .. }
         ));
     }
@@ -170,7 +173,8 @@ mod tests {
         agents.insert("agent".to_string(), make_agent(None, vec!["*"], 60));
         let mw = make_mw(agents);
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("any_tool"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("any_tool")))
+                .await,
             Decision::Block { .. }
         ));
     }
@@ -186,11 +190,13 @@ mod tests {
         );
         let mw = make_mw(agents);
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("read_file"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("read_file")))
+                .await,
             Decision::Allow { .. }
         ));
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("list_dir"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("list_dir")))
+                .await,
             Decision::Allow { .. }
         ));
     }
@@ -204,11 +210,13 @@ mod tests {
         );
         let mw = make_mw(agents);
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("write_file"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("write_file")))
+                .await,
             Decision::Block { .. }
         ));
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("delete_file"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("delete_file")))
+                .await,
             Decision::Block { .. }
         ));
     }
@@ -216,13 +224,11 @@ mod tests {
     #[tokio::test]
     async fn glob_allowlist_star_permits_all_tools() {
         let mut agents = HashMap::new();
-        agents.insert(
-            "agent".to_string(),
-            make_agent(Some(vec!["*"]), vec![], 60),
-        );
+        agents.insert("agent".to_string(), make_agent(Some(vec!["*"]), vec![], 60));
         let mw = make_mw(agents);
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("anything"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("anything")))
+                .await,
             Decision::Allow { .. }
         ));
     }
@@ -237,12 +243,14 @@ mod tests {
         );
         let mw = make_mw(agents);
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("read_file"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("read_file")))
+                .await,
             Decision::Block { .. }
         ));
         // read_dir still allowed (not denied)
         assert!(matches!(
-            mw.check(&ctx("agent", "tools/call", Some("read_dir"))).await,
+            mw.check(&ctx("agent", "tools/call", Some("read_dir")))
+                .await,
             Decision::Allow { .. }
         ));
     }
@@ -274,12 +282,14 @@ mod tests {
 
         // allowed by default policy (not in denylist)
         assert!(matches!(
-            mw.check(&ctx("unknown-agent", "tools/call", Some("read_file"))).await,
+            mw.check(&ctx("unknown-agent", "tools/call", Some("read_file")))
+                .await,
             Decision::Allow { .. }
         ));
         // blocked by default policy denylist
         assert!(matches!(
-            mw.check(&ctx("unknown-agent", "tools/call", Some("delete_db"))).await,
+            mw.check(&ctx("unknown-agent", "tools/call", Some("delete_db")))
+                .await,
             Decision::Block { .. }
         ));
     }
@@ -298,7 +308,8 @@ mod tests {
 
         // strict-agent is blocked by its own allowlist, not the permissive default
         assert!(matches!(
-            mw.check(&ctx("strict-agent", "tools/call", Some("write_file"))).await,
+            mw.check(&ctx("strict-agent", "tools/call", Some("write_file")))
+                .await,
             Decision::Block { .. }
         ));
     }

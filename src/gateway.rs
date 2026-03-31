@@ -568,8 +568,7 @@ mod tests {
         use base64::Engine;
         let re = Regex::new("private_key").unwrap();
         // Upstream returns a Base64-encoded value containing "private_key=..."
-        let encoded =
-            base64::engine::general_purpose::STANDARD.encode("private_key=AAAABBBBCCCC");
+        let encoded = base64::engine::general_purpose::STANDARD.encode("private_key=AAAABBBBCCCC");
         let val = json!({"result": {"content": [{"text": encoded}]}});
         let (out, changed) = redact_value(val, &[re]);
         assert!(changed);

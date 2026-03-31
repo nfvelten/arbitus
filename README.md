@@ -21,8 +21,9 @@ Agent (Cursor, Claude, etc.)
 - **Auth** — each agent gets an explicit allowlist or denylist of tools; glob wildcards supported (`read_*`, `fs/*`); optional pre-shared API key or JWT/OIDC
 - **tools/list filtering** — agents only see the tools they are allowed to call (wildcards respected)
 - **Rate limiting** — per-agent sliding window (calls/min) + per-tool limits + per-IP limit; standard `X-RateLimit-*` headers on every response
-- **Payload filtering** — block requests whose arguments match sensitive patterns (passwords, API keys, tokens)
+- **Payload filtering** — block requests whose arguments match sensitive patterns (passwords, API keys, tokens); encoding-aware: catches Base64, percent-encoded, double-encoded, and Unicode (Bidi/NFC) bypass attempts
 - **Response filtering** — block upstream responses that contain sensitive patterns before they reach the agent
+- **Schema validation** — `tools/call` arguments validated against the `inputSchema` from `tools/list`; invalid or unexpected fields are rejected before reaching the upstream
 - **Audit log** — every request recorded with a unique `X-Request-Id`; fan-out to multiple backends simultaneously (SQLite, webhook, stdout)
 - **Multiple upstreams** — route different agents to different MCP servers
 - **Circuit breaker** — upstream failures open the circuit; automatic half-open probe after recovery timeout
@@ -247,10 +248,11 @@ agents:
 
 | Field | Description |
 |---|---|
-| `block_patterns` | List of regex patterns applied to `tools/call` arguments and upstream responses. |
+| `block_patterns` | List of regex patterns applied to `tools/call` arguments and upstream responses. Applied after decoding Base64, percent-encoding, double-encoding, and Unicode normalization — obfuscated payloads are not bypassed. |
 | `filter_mode` | `block` (default) or `redact`. In `redact` mode, matching values in arguments are scrubbed to `[REDACTED]` and the sanitised request is forwarded instead of being rejected. Responses are always scrubbed regardless of this setting. |
 | `block_prompt_injection` | `true` to enable built-in prompt injection detection (7 patterns). Matched requests are always blocked, even in `redact` mode. Default: `false`. |
 | `ip_rate_limit` | Max `tools/call` requests per minute per client IP. Applied before per-agent limits. Optional. |
+| `validate_schema` | `true` to enable JSON schema validation of `tools/call` arguments against the `inputSchema` from `tools/list`. Requests with invalid or unexpected fields are blocked. Default: `false`. |
 
 ```yaml
 rules:
@@ -540,35 +542,38 @@ Flags:
 ## Architecture
 
 ```
-            ┌─────────────────────────────────┐
-            │            McpShield            │
-            │                                 │
-  request ──► Pipeline                        │
-            │   1. RateLimitMiddleware        │
-            │   2. AuthMiddleware             │
-            │   3. PayloadFilterMiddleware    │
-            │         │                       │
-            │    Allow/Block                  │
-            │         │                       │
-            │   AuditLog + Metrics            │
-            │         │                       │
-            │    McpUpstream (per-agent)      │
-            └─────────────────────────────────┘
+            ┌─────────────────────────────────────┐
+            │              McpShield              │
+            │                                     │
+  request ──► Pipeline                            │
+            │   1. RateLimitMiddleware            │
+            │   2. AuthMiddleware                 │
+            │   3. SchemaValidationMiddleware     │
+            │   4. PayloadFilterMiddleware        │
+            │         │                           │
+            │    Allow/Block/Redact               │
+            │         │                           │
+            │   AuditLog + Metrics                │
+            │         │                           │
+            │    McpUpstream (per-agent)          │
+            └─────────────────────────────────────┘
 ```
 
 Each middleware is a trait object — new checks can be added without touching the gateway core. Transport, upstream, and audit backend are also trait objects, swappable via config.
 
+Payload filtering is encoding-aware: before applying `block_patterns`, the gateway decodes Base64 (standard and URL-safe), percent-encoding, double-encoding, and Unicode variants (NFC normalization, Bidi-control stripping). This prevents bypass attempts using encoded payloads.
+
 ## Tests
 
 ```sh
-# Unit tests (118 tests)
-cargo test
+# All tests
+cargo test --all-features
 
-# HTTP integration tests (35 checks)
-bash test-http.sh
+# Skip stdio tests (require npx)
+cargo test --lib
 
-# stdio integration tests — requires Node.js
-mkdir -p /tmp/mcp-test && echo "hello" > /tmp/mcp-test/hello.txt
-cargo build
-bash test-stdio.sh
+# Single test file
+cargo test --test http_gateway
 ```
+
+Integration tests are written in Rust under `tests/`. They spin up a real gateway binary and an in-process dummy MCP server on free ports. Stdio tests are marked `#[ignore]` since they require `npx` at runtime.

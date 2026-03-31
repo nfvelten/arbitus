@@ -1,0 +1,126 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+**mcp-shield** is a security proxy (gateway) that sits between AI agents (Cursor, Claude, etc.) and MCP (Model Context Protocol) servers. It enforces per-agent policies — authentication, rate limiting, payload filtering, schema validation, and audit logging — before any tool call reaches the upstream MCP server.
+
+## Commands
+
+### Build
+```bash
+cargo build            # Debug
+cargo build --release  # Release (binaries: mcp-shield, mcp-shield-audit, dummy-server)
+```
+
+### Test
+```bash
+cargo test --all-features              # All tests
+cargo test --test http_gateway         # Single integration test file
+cargo test my_test_name -- --nocapture # Single test with output
+cargo test --lib                       # Unit tests only (no stdio tests requiring npx)
+```
+
+### Lint & Format
+```bash
+cargo fmt                      # Apply formatting
+cargo fmt --check              # Check without modifying
+cargo clippy -- -D warnings    # Lint (CI fails on any warning)
+```
+
+## Architecture
+
+```
+Agent (Cursor, Claude, etc.)
+       ↓ JSON-RPC
+  mcp-shield (this gateway)
+       ↓ Middleware pipeline:
+         1. RateLimitMiddleware    — sliding-window per-agent/tool/IP
+         2. AuthMiddleware         — tool allowlist/denylist (supports wildcards)
+         3. PayloadFilterMiddleware — block/redact sensitive patterns + prompt injection
+         4. SchemaValidationMiddleware — validate args against tools/list schema
+       ↓
+  McpUpstream (circuit breaker: Closed → Open → HalfOpen)
+       ↓
+  MCP Server (filesystem, database, APIs, etc.)
+```
+
+### Key Modules
+
+- **`src/gateway.rs`** — `McpGateway`: intercepts requests, runs the middleware pipeline, routes to upstream
+- **`src/config.rs`** — YAML config parsing (agents, rules, auth, transports, audit backends)
+- **`src/live_config.rs`** — Hot-reloadable config via `tokio::sync::watch`; reloads on `SIGUSR1` or every 30s
+- **`src/middleware/`** — Trait-based middleware pipeline; each impl returns `Decision` (Allow/Block/Redact)
+- **`src/transport/`** — `Transport` trait; `http.rs` = Axum HTTP server with SSE + dashboard + metrics; `stdio.rs` = spawn MCP subprocess
+- **`src/upstream/`** — `McpUpstream` trait; `http.rs` = reqwest client with circuit breaker
+- **`src/audit/`** — `AuditLog` trait with SQLite, stdout, webhook backends; `fanout.rs` fans out to multiple
+- **`src/jwt.rs`** — JWT/OIDC validation (HS256, RS256, JWKS, multi-provider)
+- **`src/bin/gateway.rs`** — Main binary entrypoint
+- **`src/bin/audit.rs`** — CLI to query SQLite audit log
+- **`src/bin/dummy_server.rs`** — Minimal MCP server used in integration tests
+
+### Test Structure
+
+```
+tests/
+  common/mod.rs          # Shared harness: spins up dummy server + gateway on free ports
+  http_gateway.rs        # HTTP transport integration tests
+  stdio_gateway.rs       # Stdio transport tests (marked #[ignore], require npx)
+  security_coverage.rs   # Payload filtering and injection detection
+  attack_scenarios.rs    # Real-world attack scenarios
+```
+
+Integration tests spin up a real gateway binary + in-process dummy MCP server. The test harness is in `tests/common/mod.rs`.
+
+## Configuration
+
+The gateway is configured via YAML (`gateway.yml`). Key sections:
+
+```yaml
+transport:
+  type: http              # or stdio
+  addr: "0.0.0.0:4000"
+  upstream: "http://localhost:3000/mcp"
+  circuit_breaker:
+    threshold: 5
+    recovery_secs: 30
+
+upstreams:                # Named upstreams for per-agent routing
+  filesystem: "http://localhost:3001/mcp"
+
+agents:
+  cursor:
+    upstream: filesystem
+    allowed_tools: [read_file, "list_*"]   # supports wildcards
+    rate_limit: 30         # req/min
+    tool_rate_limits:
+      write_file: 5
+    api_key: "sk-cursor-secret"
+
+rules:
+  block_patterns: ["password", "(?i)private_key"]
+  filter_mode: block       # or redact
+  block_prompt_injection: true
+
+audits:                    # Fan-out to multiple backends
+  - type: sqlite
+    path: "gateway-audit.db"
+  - type: webhook
+    url: "https://hooks.example.com/mcp"
+```
+
+## Running
+
+```bash
+# Start gateway
+./target/release/mcp-shield gateway.yml
+
+# Query audit log
+./target/release/mcp-shield-audit gateway-audit.db --agent cursor --outcome blocked --since 1h
+
+# Hot-reload config
+kill -USR1 $(pidof mcp-shield)
+```
+
+Endpoints: `/health`, `/metrics` (Prometheus), `/dashboard` (audit UI). The admin endpoints require `Authorization: Bearer <admin_token>`.

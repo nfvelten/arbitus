@@ -10,8 +10,7 @@ use mcp_shield::{
     metrics::GatewayMetrics,
     middleware::{
         Pipeline, auth::AuthMiddleware, payload_filter::PayloadFilterMiddleware,
-        rate_limit::RateLimitMiddleware,
-        schema_validation::SchemaValidationMiddleware,
+        rate_limit::RateLimitMiddleware, schema_validation::SchemaValidationMiddleware,
     },
     prompt_injection,
     schema_cache::SchemaCache,
@@ -166,7 +165,9 @@ async fn main() -> anyhow::Result<()> {
     let pipeline = Pipeline::new()
         .add(Arc::new(RateLimitMiddleware::new(config_rx.clone())))
         .add(Arc::new(AuthMiddleware::new(config_rx.clone())))
-        .add(Arc::new(SchemaValidationMiddleware::new(schema_cache.clone())))
+        .add(Arc::new(SchemaValidationMiddleware::new(
+            schema_cache.clone(),
+        )))
         .add(Arc::new(PayloadFilterMiddleware::new(config_rx.clone())));
 
     // ── Named upstreams ────────────────────────────────────────────────────────

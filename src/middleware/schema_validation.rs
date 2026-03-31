@@ -151,7 +151,8 @@ mod tests {
             "properties": {"limit": {"type": "integer", "maximum": 100}}
         });
         let mw = SchemaValidationMiddleware::new(cache_with("agent", "list", schema));
-        if let Decision::Block { reason, .. } = mw.check(&ctx("list", json!({"limit": 999}))).await {
+        if let Decision::Block { reason, .. } = mw.check(&ctx("list", json!({"limit": 999}))).await
+        {
             assert!(reason.contains("schema violation"));
         } else {
             panic!("expected Block");
@@ -170,7 +171,12 @@ mod tests {
         });
         let mw = SchemaValidationMiddleware::new(cache_with("agent", "read_file", schema));
         // extra field "__proto__" should be rejected
-        let result = mw.check(&ctx("read_file", json!({"path": "/tmp/f", "__proto__": "injected"}))).await;
+        let result = mw
+            .check(&ctx(
+                "read_file",
+                json!({"path": "/tmp/f", "__proto__": "injected"}),
+            ))
+            .await;
         assert!(matches!(result, Decision::Block { .. }));
     }
 
@@ -181,7 +187,9 @@ mod tests {
             "properties": {"path": {"type": "string"}}
         });
         let mw = SchemaValidationMiddleware::new(cache_with("agent", "read_file", schema));
-        let result = mw.check(&ctx("read_file", json!({"path": "/tmp/f", "extra": "ok"}))).await;
+        let result = mw
+            .check(&ctx("read_file", json!({"path": "/tmp/f", "extra": "ok"})))
+            .await;
         assert!(matches!(result, Decision::Allow { .. }));
     }
 
@@ -228,7 +236,9 @@ mod tests {
             "required": ["filename"]
         });
         let mw = SchemaValidationMiddleware::new(cache_with("agent", "read_file", schema));
-        let result = mw.check(&ctx("read_file", json!({"filename": "../../etc/passwd"}))).await;
+        let result = mw
+            .check(&ctx("read_file", json!({"filename": "../../etc/passwd"})))
+            .await;
         assert!(matches!(result, Decision::Block { .. }));
     }
 
@@ -242,7 +252,9 @@ mod tests {
             "required": ["filename"]
         });
         let mw = SchemaValidationMiddleware::new(cache_with("agent", "read_file", schema));
-        let result = mw.check(&ctx("read_file", json!({"filename": "report.txt"}))).await;
+        let result = mw
+            .check(&ctx("read_file", json!({"filename": "report.txt"})))
+            .await;
         assert!(matches!(result, Decision::Allow { .. }));
     }
 
@@ -276,7 +288,12 @@ mod tests {
         });
         let mw = SchemaValidationMiddleware::new(cache_with("agent", "run", schema));
         // timeout should be integer, not a shell injection string
-        let result = mw.check(&ctx("run", json!({"options": {"timeout": "999; rm -rf /"}}))).await;
+        let result = mw
+            .check(&ctx(
+                "run",
+                json!({"options": {"timeout": "999; rm -rf /"}}),
+            ))
+            .await;
         assert!(matches!(result, Decision::Block { .. }));
     }
 
@@ -292,7 +309,12 @@ mod tests {
             "required": ["ids"]
         });
         let mw = SchemaValidationMiddleware::new(cache_with("agent", "batch_get", schema));
-        let result = mw.check(&ctx("batch_get", json!({"ids": [1, "drop table users", 3]}))).await;
+        let result = mw
+            .check(&ctx(
+                "batch_get",
+                json!({"ids": [1, "drop table users", 3]}),
+            ))
+            .await;
         assert!(matches!(result, Decision::Block { .. }));
     }
 

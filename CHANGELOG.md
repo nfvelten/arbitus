@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.7.0] — 2026-03-30
+
+### Added
+- **Schema validation middleware**: `SchemaValidationMiddleware` validates `tools/call` arguments against the `inputSchema` from `tools/list`; invalid args are blocked before reaching the upstream
+- **Encoding-aware filtering**: `decode.rs` decodes Base64 (standard and URL-safe), percent-encoding, double-encoding, and Unicode (NFC + Bidi-control stripping) variants of every argument before applying block patterns — catches obfuscated bypass attempts
+- **Schema cache**: `schema_cache.rs` caches per-agent `inputSchema` entries populated from `tools/list` responses; used by the validation middleware
+- **Expanded `AuthMiddleware`**: full allowlist/denylist enforcement and API key / JWT validation moved into the middleware pipeline
+- **Security test suite**: `attack_scenarios.rs` (SSRF, path traversal, credential leaks, SQL injection, prompt injection variants) and `security_coverage.rs` (payload filter and injection detection coverage)
+- **`gateway-test.yml`** fixture for the integration test environment
+
+### Changed
+- Integration tests migrated from shell scripts (`test-http.sh`, `test-stdio.sh`) to Rust (`tests/http_gateway.rs`, `tests/stdio_gateway.rs`)
+- Stdio tests marked `#[ignore]` — require `npx` at runtime, excluded from CI
+
+---
+
+## [0.6.0] — 2026-03-29
+
+### Added
+- **Wildcard tool matching**: glob patterns (`read_*`, `*_file`, `fs/*`) in `allowed_tools` / `denied_tools`
+- **`/health` endpoint v2**: reports per-upstream circuit state (`{"status":"ok","upstreams":{"default":true,"filesystem":false}}`)
+- **Per-agent upstream timeout**: `timeout_secs` field overrides the global 30s default
+- **`default_policy`**: top-level fallback for agents not listed in config (rate limit, denied tools, timeout)
+- **`X-Request-Id`** header on every response for end-to-end tracing
+- **OAuth 2.1 / multi-provider auth**: list form of `auth:` accepts multiple providers; first valid token wins
+- **OpenTelemetry tracing**: `telemetry.otlp_endpoint` exports spans per `tools/call`
+- **Prompt injection detection**: `block_prompt_injection: true` in `rules` enables 7 built-in patterns
+- **`filter_mode: redact`**: scrubs matching values to `[REDACTED]` and forwards the sanitised request instead of blocking
+- **Rate-limit response headers**: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After`
+- **`/dashboard`** endpoint — HTML audit log viewer with per-agent filtering
+
+---
+
 ## [0.5.0] — 2026-03-28
 
 ### Added

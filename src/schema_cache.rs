@@ -29,10 +29,7 @@ impl SchemaCache {
                 continue;
             };
             if let Some(schema) = tool.get("inputSchema") {
-                map.insert(
-                    (agent_id.to_string(), name.to_string()),
-                    schema.clone(),
-                );
+                map.insert((agent_id.to_string(), name.to_string()), schema.clone());
             }
         }
     }
