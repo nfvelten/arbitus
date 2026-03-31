@@ -41,6 +41,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "arbit"
+version = "0.7.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "axum 0.8.8",
+ "axum-server",
+ "base64",
+ "chrono",
+ "futures-util",
+ "jsonschema",
+ "jsonwebtoken",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry_sdk",
+ "percent-encoding",
+ "prometheus",
+ "regex",
+ "reqwest",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "subtle",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "unicode-normalization",
+ "uuid",
+]
+
+[[package]]
 name = "arc-swap"
 version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1093,40 +1127,6 @@ name = "matchit"
 version = "0.8.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
-
-[[package]]
-name = "mcp-shield"
-version = "0.7.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "axum 0.8.8",
- "axum-server",
- "base64",
- "chrono",
- "futures-util",
- "jsonschema",
- "jsonwebtoken",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry_sdk",
- "percent-encoding",
- "prometheus",
- "regex",
- "reqwest",
- "rusqlite",
- "serde",
- "serde_json",
- "serde_yaml",
- "subtle",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "unicode-normalization",
- "uuid",
-]
 
 [[package]]
 name = "memchr"

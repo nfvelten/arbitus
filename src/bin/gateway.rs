@@ -1,4 +1,4 @@
-use mcp_shield::{
+use arbit::{
     audit::{
         AuditLog, fanout::FanoutAudit, sqlite::SqliteAudit, stdout::StdoutAudit,
         webhook::WebhookAudit,
@@ -401,5 +401,5 @@ fn build_otel_tracer(tel: &TelemetryConfig) -> anyhow::Result<opentelemetry_sdk:
         .install_batch(Tokio)
         .map_err(|e| anyhow::anyhow!("OTLP pipeline: {e}"))?;
 
-    Ok(provider.tracer("mcp-shield"))
+    Ok(provider.tracer("arbit"))
 }

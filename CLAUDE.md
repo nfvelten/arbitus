@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**mcp-shield** is a security proxy (gateway) that sits between AI agents (Cursor, Claude, etc.) and MCP (Model Context Protocol) servers. It enforces per-agent policies — authentication, rate limiting, payload filtering, schema validation, and audit logging — before any tool call reaches the upstream MCP server.
+**arbit** is a security proxy (gateway) that sits between AI agents (Cursor, Claude, etc.) and MCP (Model Context Protocol) servers. It enforces per-agent policies — authentication, rate limiting, payload filtering, schema validation, and audit logging — before any tool call reaches the upstream MCP server.
 
 ## Commands
 
 ### Build
 ```bash
 cargo build            # Debug
-cargo build --release  # Release (binaries: mcp-shield, mcp-shield-audit, dummy-server)
+cargo build --release  # Release (binaries: arbit, arbit-audit, dummy-server)
 ```
 
 ### Test
@@ -34,7 +34,7 @@ cargo clippy -- -D warnings    # Lint (CI fails on any warning)
 ```
 Agent (Cursor, Claude, etc.)
        ↓ JSON-RPC
-  mcp-shield (this gateway)
+  arbit (this gateway)
        ↓ Middleware pipeline:
          1. RateLimitMiddleware    — sliding-window per-agent/tool/IP
          2. AuthMiddleware         — tool allowlist/denylist (supports wildcards)
@@ -114,13 +114,13 @@ audits:                    # Fan-out to multiple backends
 
 ```bash
 # Start gateway
-./target/release/mcp-shield gateway.yml
+./target/release/arbit gateway.yml
 
 # Query audit log
-./target/release/mcp-shield-audit gateway-audit.db --agent cursor --outcome blocked --since 1h
+./target/release/arbit-audit gateway-audit.db --agent cursor --outcome blocked --since 1h
 
 # Hot-reload config
-kill -USR1 $(pidof mcp-shield)
+kill -USR1 $(pidof arbit)
 ```
 
 Endpoints: `/health`, `/metrics` (Prometheus), `/dashboard` (audit UI). The admin endpoints require `Authorization: Bearer <admin_token>`.

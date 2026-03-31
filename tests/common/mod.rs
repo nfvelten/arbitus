@@ -15,7 +15,7 @@ use serde_json::{Value, json};
 use std::{convert::Infallible, time::Duration};
 use tokio::net::TcpListener;
 
-pub const GATEWAY_BIN: &str = env!("CARGO_BIN_EXE_mcp-shield");
+pub const GATEWAY_BIN: &str = env!("CARGO_BIN_EXE_arbit");
 
 // ── Port helpers ──────────────────────────────────────────────────────────────
 
@@ -292,7 +292,7 @@ audit:
 {config_snippet}"#
     );
 
-    let config_path = format!("/tmp/mcp-shield-test-{gw_port}.yml");
+    let config_path = format!("/tmp/arbit-test-{gw_port}.yml");
     std::fs::write(&config_path, &config).unwrap();
 
     let gw = tokio::process::Command::new(GATEWAY_BIN)

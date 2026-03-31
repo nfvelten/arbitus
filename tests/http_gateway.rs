@@ -460,7 +460,7 @@ async fn metrics_endpoint_tracks_outcomes() {
         .unwrap();
 
     assert!(
-        metrics.contains("mcp_shield_requests_total"),
+        metrics.contains("arbit_requests_total"),
         "metric name missing"
     );
     assert!(
@@ -962,7 +962,7 @@ rules:
 #[tokio::test]
 async fn audit_log_records_allowed_and_blocked_calls() {
     let unique = free_port().await;
-    let audit_path = format!("/tmp/mcp-shield-audit-{unique}.db");
+    let audit_path = format!("/tmp/arbit-audit-{unique}.db");
 
     let config = r#"agents:
   cursor:

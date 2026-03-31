@@ -10,10 +10,7 @@ impl GatewayMetrics {
         let registry = Registry::new();
 
         let requests = CounterVec::new(
-            Opts::new(
-                "mcp_shield_requests_total",
-                "Total requests processed by mcp-shield",
-            ),
+            Opts::new("arbit_requests_total", "Total requests processed by arbit"),
             &["agent", "outcome"],
         )?;
         registry.register(Box::new(requests.clone()))?;

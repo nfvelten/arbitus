@@ -1,8 +1,8 @@
-# mcp-shield
+# arbit
 
-[![crates.io](https://img.shields.io/crates/v/mcp-shield.svg)](https://crates.io/crates/mcp-shield)
+[![crates.io](https://img.shields.io/crates/v/arbit.svg)](https://crates.io/crates/arbit)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![CI](https://github.com/nfvelten/mcp-shield/actions/workflows/ci.yml/badge.svg)](https://github.com/nfvelten/mcp-shield/actions/workflows/ci.yml)
+[![CI](https://github.com/nfvelten/arbit/actions/workflows/ci.yml/badge.svg)](https://github.com/nfvelten/arbit/actions/workflows/ci.yml)
 
 A security proxy that sits between AI agents and MCP servers. It enforces per-agent policies before any tool call reaches the upstream server.
 
@@ -10,7 +10,7 @@ A security proxy that sits between AI agents and MCP servers. It enforces per-ag
 Agent (Cursor, Claude, etc.)
         │  JSON-RPC
         ▼
-  mcp-shield          ← auth, rate limit, payload filter, audit
+  arbit          ← auth, rate limit, payload filter, audit
         │
         ▼
   MCP Server (filesystem, database, APIs...)
@@ -39,33 +39,33 @@ Agent (Cursor, Claude, etc.)
 
 ## Installation
 
-Download a pre-built binary for your platform from the [releases page](https://github.com/nfvelten/mcp-shield/releases):
+Download a pre-built binary for your platform from the [releases page](https://github.com/nfvelten/arbit/releases):
 
 | Platform | Archive |
 |---|---|
-| Linux x64 (static) | `mcp-shield-vX.Y.Z-x86_64-unknown-linux-musl.tar.gz` |
-| Linux ARM64 (static) | `mcp-shield-vX.Y.Z-aarch64-unknown-linux-musl.tar.gz` |
-| macOS x64 | `mcp-shield-vX.Y.Z-x86_64-apple-darwin.tar.gz` |
-| macOS Apple Silicon | `mcp-shield-vX.Y.Z-aarch64-apple-darwin.tar.gz` |
-| Windows x64 | `mcp-shield-vX.Y.Z-x86_64-pc-windows-msvc.zip` |
+| Linux x64 (static) | `arbit-vX.Y.Z-x86_64-unknown-linux-musl.tar.gz` |
+| Linux ARM64 (static) | `arbit-vX.Y.Z-aarch64-unknown-linux-musl.tar.gz` |
+| macOS x64 | `arbit-vX.Y.Z-x86_64-apple-darwin.tar.gz` |
+| macOS Apple Silicon | `arbit-vX.Y.Z-aarch64-apple-darwin.tar.gz` |
+| Windows x64 | `arbit-vX.Y.Z-x86_64-pc-windows-msvc.zip` |
 
-Each archive contains `mcp-shield` (the proxy) and `mcp-shield-audit` (the CLI).
+Each archive contains `arbit` (the proxy) and `arbit-audit` (the CLI).
 
 Or install from crates.io (requires Rust 1.85+):
 
 ```sh
-cargo install mcp-shield
+cargo install arbit
 ```
 
 Or build from source:
 
 ```sh
-git clone https://github.com/nfvelten/mcp-shield
-cd mcp-shield
+git clone https://github.com/nfvelten/arbit
+cd arbit
 cargo build --release
 ```
 
-Binaries will be at `target/release/mcp-shield` and `target/release/mcp-shield-audit`.
+Binaries will be at `target/release/arbit` and `target/release/arbit-audit`.
 
 ### Docker
 
@@ -153,13 +153,13 @@ Accepts a single provider or a list — the first to successfully validate the t
 auth:
   secret: "your-signing-secret"
   issuer: "https://auth.example.com"   # optional — validated if set
-  audience: "mcp-shield"               # optional — validated if set
+  audience: "arbit"               # optional — validated if set
 
 # JWKS (RS256 / OIDC) — explicit endpoint
 auth:
   jwks_url: "https://auth.example.com/.well-known/jwks.json"
   issuer: "https://auth.example.com"
-  audience: "mcp-shield"
+  audience: "arbit"
 
 # Provider presets — OIDC discovery URL resolved automatically
 auth:
@@ -320,7 +320,7 @@ Payload sent on each request:
 Start the gateway:
 
 ```sh
-./mcp-shield gateway.yml
+./arbit gateway.yml
 ```
 
 Agents connect to `http://localhost:4000/mcp`. The gateway forwards allowed requests to the upstream MCP server.
@@ -416,11 +416,11 @@ curl http://localhost:4000/metrics -H "Authorization: Bearer admin-secret"
 ```
 
 ```
-# HELP mcp_shield_requests_total Total requests processed by the gateway
-# TYPE mcp_shield_requests_total counter
-mcp_shield_requests_total{agent="cursor",outcome="allowed"} 12
-mcp_shield_requests_total{agent="cursor",outcome="blocked"} 3
-mcp_shield_requests_total{agent="claude-code",outcome="forwarded"} 8
+# HELP arbit_requests_total Total requests processed by the gateway
+# TYPE arbit_requests_total counter
+arbit_requests_total{agent="cursor",outcome="allowed"} 12
+arbit_requests_total{agent="cursor",outcome="blocked"} 3
+arbit_requests_total{agent="claude-code",outcome="forwarded"} 8
 ```
 
 ## Health check
@@ -464,7 +464,7 @@ curl "http://localhost:4000/dashboard?agent=cursor"
 Agent policies and block patterns reload from disk every 30 seconds automatically, or immediately on `SIGUSR1`:
 
 ```sh
-kill -USR1 $(pidof mcp-shield)
+kill -USR1 $(pidof arbit)
 ```
 
 No restart required. In-flight requests are not affected.
@@ -476,7 +476,7 @@ Export traces to any OTLP-compatible backend (Jaeger, Grafana Tempo, Honeycomb, 
 ```yaml
 telemetry:
   otlp_endpoint: "http://localhost:4317"   # gRPC OTLP
-  service_name: "mcp-shield"               # optional, default: "mcp-shield"
+  service_name: "arbit"               # optional, default: "arbit"
 ```
 
 Every `tools/call` creates a span with `agent_id`, `method`, and `tool` attributes. Spans are exported in batches; any buffered spans are flushed on shutdown.
@@ -484,7 +484,7 @@ Every `tools/call` creates a span with `agent_id`, `method`, and `tool` attribut
 ```sh
 # Quick local test with Jaeger all-in-one
 docker run -p 4317:4317 -p 16686:16686 jaegertracing/all-in-one
-LOG_LEVEL=debug ./mcp-shield gateway.yml
+LOG_LEVEL=debug ./arbit gateway.yml
 open http://localhost:16686
 ```
 
@@ -494,10 +494,10 @@ Control log format and level via environment variables:
 
 ```sh
 # Structured JSON (production / log aggregators)
-LOG_FORMAT=json ./mcp-shield gateway.yml
+LOG_FORMAT=json ./arbit gateway.yml
 
 # Adjust log level (default: info)
-LOG_LEVEL=debug ./mcp-shield gateway.yml
+LOG_LEVEL=debug ./arbit gateway.yml
 ```
 
 ## Audit CLI
@@ -506,16 +506,16 @@ Query the audit log without opening SQLite directly:
 
 ```sh
 # Last 50 entries
-./mcp-shield-audit gateway-audit.db
+./arbit-audit gateway-audit.db
 
 # Only blocked requests in the last hour
-./mcp-shield-audit gateway-audit.db --outcome blocked --since 1h
+./arbit-audit gateway-audit.db --outcome blocked --since 1h
 
 # All activity from a specific agent
-./mcp-shield-audit gateway-audit.db --agent cursor
+./arbit-audit gateway-audit.db --agent cursor
 
 # Increase the row limit
-./mcp-shield-audit gateway-audit.db --limit 200
+./arbit-audit gateway-audit.db --limit 200
 ```
 
 Output:
@@ -543,7 +543,7 @@ Flags:
 
 ```
             ┌─────────────────────────────────────┐
-            │              McpShield              │
+            │              Arbit              │
             │                                     │
   request ──► Pipeline                            │
             │   1. RateLimitMiddleware            │

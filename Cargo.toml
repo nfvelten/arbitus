@@ -1,15 +1,15 @@
 [package]
-name = "mcp-shield"
+name = "arbit"
 version = "0.7.0"
 edition = "2024"
 description = "Security proxy for MCP (Model Context Protocol) — auth, rate limiting, payload filtering, and audit logging between AI agents and MCP servers"
-repository = "https://github.com/nfvelten/mcp-shield"
+repository = "https://github.com/nfvelten/arbit"
 license = "MIT"
 keywords = ["mcp", "proxy", "security", "ai", "gateway"]
 categories = ["network-programming", "authentication"]
 
 [lib]
-name = "mcp_shield"
+name = "arbit"
 path = "src/lib.rs"
 
 [[bin]]
@@ -17,11 +17,11 @@ name = "dummy-server"
 path = "src/bin/dummy_server.rs"
 
 [[bin]]
-name = "mcp-shield"
+name = "arbit"
 path = "src/bin/gateway.rs"
 
 [[bin]]
-name = "mcp-shield-audit"
+name = "arbit-audit"
 path = "src/bin/audit.rs"
 
 [dependencies]
