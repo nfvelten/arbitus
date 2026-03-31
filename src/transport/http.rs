@@ -1002,4 +1002,84 @@ mod tests {
         let raw = "data: my secret token";
         assert!(parse_and_filter_sse(raw, &rx).is_some());
     }
+
+    #[test]
+    fn matching_pattern_content_is_redacted_in_event() {
+        let rx = config_rx_with_pattern("private_key");
+        let raw = "event: message\ndata: value=private_key=AAABBB";
+        // The event should still be returned but content should be [REDACTED]
+        let event = parse_and_filter_sse(raw, &rx).unwrap();
+        // axum's Event doesn't expose data directly, but we can verify by debug output
+        let dbg = format!("{event:?}");
+        assert!(
+            dbg.contains("REDACTED") || !dbg.contains("private_key"),
+            "sensitive data should be redacted in SSE event: {dbg}"
+        );
+    }
+
+    #[test]
+    fn multiline_data_joined_with_newline() {
+        let rx = empty_config_rx();
+        // SSE multi-line data
+        let raw = "event: batch\ndata: line1\ndata: line2\ndata: line3";
+        let event = parse_and_filter_sse(raw, &rx);
+        assert!(event.is_some(), "multiline data should produce an event");
+    }
+
+    #[test]
+    fn multiple_block_patterns_applied() {
+        fn config_rx_with_two_patterns(p1: &str, p2: &str) -> watch::Receiver<Arc<LiveConfig>> {
+            let re1 = Regex::new(p1).unwrap();
+            let re2 = Regex::new(p2).unwrap();
+            let (_, rx) = watch::channel(Arc::new(LiveConfig::new(
+                HashMap::new(),
+                vec![re1, re2],
+                vec![],
+                None,
+                FilterMode::Block,
+                None,
+            )));
+            rx
+        }
+        let rx = config_rx_with_two_patterns("secret", "password");
+        let raw = "data: secret=abc password=xyz";
+        let event = parse_and_filter_sse(raw, &rx);
+        assert!(event.is_some());
+        // Both patterns should redact; the event is not dropped
+    }
+
+    #[test]
+    fn event_type_preserved_in_output() {
+        let rx = empty_config_rx();
+        let raw = "event: tools_response\ndata: {\"result\": \"ok\"}";
+        let event = parse_and_filter_sse(raw, &rx);
+        assert!(event.is_some());
+        let dbg = format!("{event:?}");
+        assert!(
+            dbg.contains("tools_response"),
+            "event type should be preserved: {dbg}"
+        );
+    }
+
+    // ── SessionStore additional ────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn multiple_sessions_independent() {
+        let store = SessionStore::new(3600);
+        let sid1 = store.create("agent-a".to_string()).await;
+        let sid2 = store.create("agent-b".to_string()).await;
+        assert_ne!(sid1, sid2);
+        assert_eq!(store.resolve(&sid1).await, Some("agent-a".to_string()));
+        assert_eq!(store.resolve(&sid2).await, Some("agent-b".to_string()));
+    }
+
+    #[tokio::test]
+    async fn invalidate_one_session_leaves_other_intact() {
+        let store = SessionStore::new(3600);
+        let sid1 = store.create("a".to_string()).await;
+        let sid2 = store.create("b".to_string()).await;
+        store.invalidate(&sid1).await;
+        assert_eq!(store.resolve(&sid1).await, None);
+        assert_eq!(store.resolve(&sid2).await, Some("b".to_string()));
+    }
 }

@@ -843,4 +843,158 @@ mod tests {
                 .contains("[shadow]")
         );
     }
+
+    // ── upstream_for ──────────────────────────────────────────────────────────
+
+    struct RecordingUpstream {
+        name: String,
+    }
+    #[async_trait::async_trait]
+    impl McpUpstream for RecordingUpstream {
+        async fn forward(&self, _: &Value) -> Option<Value> {
+            Some(json!({"upstream": self.name}))
+        }
+        fn base_url(&self) -> &str {
+            &self.name
+        }
+    }
+
+    fn make_gw_with_named_upstream(agent: &str, upstream_name: &str) -> McpGateway {
+        let mut agents = HashMap::new();
+        agents.insert(
+            agent.to_string(),
+            AgentPolicy {
+                allowed_tools: None,
+                denied_tools: vec![],
+                rate_limit: 100,
+                tool_rate_limits: HashMap::new(),
+                upstream: Some(upstream_name.to_string()),
+                api_key: None,
+                timeout_secs: None,
+                approval_required: vec![],
+                hitl_timeout_secs: 60,
+                shadow_tools: vec![],
+            },
+        );
+        let live = Arc::new(LiveConfig::new(
+            agents,
+            vec![],
+            vec![],
+            None,
+            FilterMode::Block,
+            None,
+        ));
+        let (_, rx) = watch::channel(live);
+        let named: Arc<dyn McpUpstream> = Arc::new(RecordingUpstream {
+            name: upstream_name.to_string(),
+        });
+        let mut named_map = HashMap::new();
+        named_map.insert(upstream_name.to_string(), named);
+        McpGateway::new(
+            Pipeline::new(),
+            Arc::new(NoopUpstream),
+            named_map,
+            Arc::new(NoopAudit),
+            Arc::new(GatewayMetrics::new().unwrap()),
+            rx,
+            SchemaCache::new(),
+        )
+    }
+
+    #[tokio::test]
+    async fn handle_routes_to_named_upstream_when_configured() {
+        let gw = make_gw_with_named_upstream("agent", "filesystem");
+        let msg = json!({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "tools/call",
+            "params": {"name": "read_file", "arguments": {}}
+        });
+        let (resp, _, _) = gw.handle("agent", msg, None).await;
+        let resp = resp.unwrap();
+        // RecordingUpstream returns {"upstream": "filesystem"}
+        assert_eq!(resp["upstream"], "filesystem");
+    }
+
+    #[tokio::test]
+    async fn handle_falls_back_to_default_upstream_for_unknown_agent() {
+        // NoopUpstream (default) returns None; RecordingUpstream returns Some
+        let gw = make_gw_with_named_upstream("known-agent", "filesystem");
+        let msg = json!({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "tools/call",
+            "params": {"name": "any_tool", "arguments": {}}
+        });
+        // "unknown-agent" is not in agents, falls back to default (NoopUpstream → None)
+        let (resp, _, _) = gw.handle("unknown-agent", msg, None).await;
+        assert!(
+            resp.is_none(),
+            "unknown agent should use default (Noop) upstream"
+        );
+    }
+
+    // ── filter_response ───────────────────────────────────────────────────────
+
+    #[test]
+    fn filter_response_with_no_patterns_returns_value_unchanged() {
+        let gw = make_gw(HashMap::new(), vec![]);
+        let val = json!({"result": {"content": [{"text": "private_key=AAABBB"}]}});
+        let out = gw.filter_response(val.clone());
+        assert_eq!(out, val, "no patterns → value should be unchanged");
+    }
+
+    #[test]
+    fn filter_response_redacts_matching_string() {
+        let re = regex::Regex::new("private_key").unwrap();
+        let gw = make_gw(HashMap::new(), vec![re]);
+        let val = json!({"text": "private_key=AAABBB"});
+        let out = gw.filter_response(val);
+        assert_eq!(out["text"], json!("[REDACTED]"));
+    }
+
+    // ── handle: non-tools/call forwarded ─────────────────────────────────────
+
+    #[tokio::test]
+    async fn handle_non_tools_call_method_is_forwarded_to_upstream() {
+        let gw = make_gw(HashMap::new(), vec![]);
+        // tools/list — not tools/call → intercept returns None, forwarded to NoopUpstream
+        let msg = json!({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "tools/list"
+        });
+        let (resp, _, _) = gw.handle("any-agent", msg, None).await;
+        // NoopUpstream returns None for everything
+        assert!(resp.is_none());
+    }
+
+    #[tokio::test]
+    async fn handle_initialize_is_forwarded() {
+        let gw = make_gw(HashMap::new(), vec![]);
+        let msg = json!({
+            "jsonrpc": "2.0", "id": 1,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-03-26", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}}
+        });
+        let (resp, _, _) = gw.handle("any-agent", msg, None).await;
+        assert!(resp.is_none()); // NoopUpstream
+    }
+
+    // ── upstreams_health ──────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn upstreams_health_includes_default() {
+        let gw = make_gw(HashMap::new(), vec![]);
+        let health = gw.upstreams_health().await;
+        assert!(
+            health.contains_key("default"),
+            "health map should have 'default'"
+        );
+    }
+
+    #[tokio::test]
+    async fn upstreams_health_includes_named_upstreams() {
+        let gw = make_gw_with_named_upstream("agent", "filesystem");
+        let health = gw.upstreams_health().await;
+        assert!(health.contains_key("default"));
+        assert!(health.contains_key("filesystem"));
+    }
 }

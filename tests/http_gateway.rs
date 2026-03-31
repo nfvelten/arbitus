@@ -1425,6 +1425,130 @@ async fn reject_endpoint_requires_admin_token() {
     assert_eq!(status, 401);
 }
 
+// ── Edge cases ────────────────────────────────────────────────────────────────
+
+#[tokio::test]
+async fn agent_name_too_long_returns_400() {
+    let h = harness(DEFAULT_CONFIG).await;
+    let long_name = "a".repeat(129); // MAX_AGENT_ID_LEN = 128
+    let body = serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": { "name": long_name, "version": "1.0.0" }
+        }
+    });
+    let status = h
+        .client
+        .post(h.url("/mcp"))
+        .json(&body)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16();
+    assert_eq!(status, 400);
+}
+
+#[tokio::test]
+async fn dashboard_requires_admin_token() {
+    let h = harness(HITL_CONFIG).await; // has admin_token: "test-admin"
+    let status = h
+        .client
+        .get(h.url("/dashboard"))
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16();
+    assert_eq!(status, 401);
+}
+
+#[tokio::test]
+async fn dashboard_without_sqlite_backend_returns_not_found() {
+    // harness() uses stdout audit → no SQLite → dashboard returns 404
+    let h = harness(HITL_CONFIG).await;
+    let status = h
+        .client
+        .get(h.url("/dashboard"))
+        .header("Authorization", "Bearer test-admin")
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16();
+    assert_eq!(status, 404);
+}
+
+#[tokio::test]
+async fn metrics_endpoint_requires_admin_token() {
+    let h = harness(HITL_CONFIG).await;
+    let status = h
+        .client
+        .get(h.url("/metrics"))
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16();
+    assert_eq!(status, 401);
+}
+
+#[tokio::test]
+async fn metrics_accessible_with_admin_token() {
+    let h = harness(HITL_CONFIG).await;
+    // Make a request first so metrics are populated
+    let (sid, _) = h.init("hitl-agent").await;
+    h.json(Some(&sid), call_body("echo", json!({"text": "hi"}))).await;
+
+    let resp = h
+        .client
+        .get(h.url("/metrics"))
+        .header("Authorization", "Bearer test-admin")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status().as_u16(), 200);
+    let ct = resp.headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    assert!(ct.contains("text/plain"), "expected Prometheus text format, got: {ct}");
+}
+
+#[tokio::test]
+async fn approve_unknown_id_returns_404() {
+    let h = harness(HITL_CONFIG).await;
+    let status = h
+        .client
+        .post(h.url("/approvals/nonexistent-id/approve"))
+        .header("Authorization", "Bearer test-admin")
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16();
+    assert_eq!(status, 404);
+}
+
+#[tokio::test]
+async fn reject_unknown_id_returns_404() {
+    let h = harness(HITL_CONFIG).await;
+    let status = h
+        .client
+        .post(h.url("/approvals/nonexistent-id/reject"))
+        .header("Authorization", "Bearer test-admin")
+        .header("content-type", "application/json")
+        .body(r#"{}"#)
+        .send()
+        .await
+        .unwrap()
+        .status()
+        .as_u16();
+    assert_eq!(status, 404);
+}
+
 #[tokio::test]
 async fn shadow_mode_audit_outcome_is_shadowed() {
     let db_path = format!("/tmp/arbit-shadow-audit-test-{}.db", std::process::id());
