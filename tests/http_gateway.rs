@@ -1500,7 +1500,8 @@ async fn metrics_accessible_with_admin_token() {
     let h = harness(HITL_CONFIG).await;
     // Make a request first so metrics are populated
     let (sid, _) = h.init("hitl-agent").await;
-    h.json(Some(&sid), call_body("echo", json!({"text": "hi"}))).await;
+    h.json(Some(&sid), call_body("echo", json!({"text": "hi"})))
+        .await;
 
     let resp = h
         .client
@@ -1510,11 +1511,15 @@ async fn metrics_accessible_with_admin_token() {
         .await
         .unwrap();
     assert_eq!(resp.status().as_u16(), 200);
-    let ct = resp.headers()
+    let ct = resp
+        .headers()
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    assert!(ct.contains("text/plain"), "expected Prometheus text format, got: {ct}");
+    assert!(
+        ct.contains("text/plain"),
+        "expected Prometheus text format, got: {ct}"
+    );
 }
 
 #[tokio::test]

@@ -566,7 +566,10 @@ async fn cmd_replay(
         .unwrap_or_default()
         .as_secs() as i64;
 
-    let mut conditions = vec!["method = 'tools/call'".to_string(), "arguments IS NOT NULL".to_string()];
+    let mut conditions = vec![
+        "method = 'tools/call'".to_string(),
+        "arguments IS NOT NULL".to_string(),
+    ];
     let mut binds: Vec<Value> = Vec::new();
 
     if let Some(ref a) = agent {
@@ -625,8 +628,8 @@ async fn cmd_replay(
 
     for (i, (ts, agent_id, tool, args_json)) in rows.iter().enumerate() {
         let tool_name = tool.as_deref().unwrap_or("<unknown>");
-        let arguments: serde_json::Value = serde_json::from_str(args_json)
-            .unwrap_or(serde_json::Value::Null);
+        let arguments: serde_json::Value =
+            serde_json::from_str(args_json).unwrap_or(serde_json::Value::Null);
 
         let age = format_age(*ts, now_ts);
         println!(
@@ -652,12 +655,23 @@ async fn cmd_replay(
             }
         });
 
-        match client.as_ref().unwrap().post(upstream.as_ref().unwrap()).json(&msg).send().await {
+        match client
+            .as_ref()
+            .unwrap()
+            .post(upstream.as_ref().unwrap())
+            .json(&msg)
+            .send()
+            .await
+        {
             Ok(resp) => {
                 let status = resp.status();
                 let body: serde_json::Value = resp.json().await.unwrap_or(serde_json::Value::Null);
                 if body.get("error").is_some() {
-                    println!("      → ERROR {}: {}", status, body["error"]["message"].as_str().unwrap_or("?"));
+                    println!(
+                        "      → ERROR {}: {}",
+                        status,
+                        body["error"]["message"].as_str().unwrap_or("?")
+                    );
                 } else {
                     println!("      → OK {}", status);
                 }

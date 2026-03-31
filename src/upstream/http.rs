@@ -245,7 +245,10 @@ mod tests {
         assert!(!cb.is_open().await, "should be Closed after success");
         // Now from Closed, one failure should not open (threshold=2)
         cb.on_failure().await; // count=1, still Closed
-        assert!(!cb.is_open().await, "one failure below threshold keeps circuit Closed");
+        assert!(
+            !cb.is_open().await,
+            "one failure below threshold keeps circuit Closed"
+        );
     }
 
     #[tokio::test]
