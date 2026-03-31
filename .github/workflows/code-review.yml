@@ -1,9 +1,7 @@
 name: AI Code Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches: [master]
+  workflow_dispatch:  # manual only — disabled on PR to avoid token consumption
 
 permissions:
   contents: read
