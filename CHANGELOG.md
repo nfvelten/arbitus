@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Federated `tools/list` now has a 10-second global timeout** (`gateway.rs`): `join_all` over all named upstreams was unbounded — a single slow upstream could block the gateway indefinitely. A `tokio::time::timeout(10s)` now wraps the fan-out; if it expires the gateway returns a JSON-RPC `-32603` error immediately. Closes #33.
+- **Hot-reload preserves running config on invalid `gateway.yml`**: if `Config::from_file` returns any error (syntax, I/O, unknown fields), the watch channel is not updated and the previous config remains active. The error is logged via `tracing::error!` with the message `"config reload failed — keeping previous config"`. The new `arbit_config_reload_failures_total` Prometheus counter is incremented on each failure for alerting. Closes #35.
+
 ### Security
 - **SSRF guard on OIDC discovery** (`jwt.rs`): `validate_issuer_url` now rejects non-HTTPS schemes, `localhost`, loopback addresses (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16`, `fe80::/10`), private IPv4 ranges (`10/8`, `172.16/12`, `192.168/16`), and unique-local IPv6 (`fc00::/7`) before making any HTTP request for OIDC discovery. Closes #32.
 
