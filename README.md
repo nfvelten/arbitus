@@ -18,7 +18,7 @@ Agent (Cursor, Claude, etc.)
 
 ## What it does
 
-- **Auth** — each agent gets an explicit allowlist or denylist of tools; glob wildcards supported (`read_*`, `fs/*`); optional pre-shared API key or JWT/OIDC
+- **Auth** — each agent gets an explicit allowlist or denylist of tools; glob wildcards supported (`read_*`, `fs/*`) with O(n·m) matching (no ReDoS); optional pre-shared API key or JWT/OIDC
 - **tools/list filtering** — agents only see the tools they are allowed to call (wildcards respected)
 - **Rate limiting** — per-agent sliding window (calls/min) + per-tool limits + per-IP limit; standard `X-RateLimit-*` headers on every response
 - **Human-in-the-Loop (HITL)** — tools in `approval_required` suspend execution until an operator approves or rejects via REST API; configurable timeout with auto-rejection
@@ -27,14 +27,14 @@ Agent (Cursor, Claude, etc.)
 - **Response filtering** — block upstream responses that contain sensitive patterns before they reach the agent
 - **Schema validation** — `tools/call` arguments validated against the `inputSchema` from `tools/list`; invalid or unexpected fields are rejected before reaching the upstream
 - **Supply-chain security** — verify the MCP server binary before spawning it (stdio mode): SHA-256 hash pinning and/or `cosign verify-blob` (Sigstore transparency log); startup aborted on mismatch
-- **Audit log** — every request recorded with a unique `X-Request-Id`; fan-out to multiple backends simultaneously (SQLite, webhook, stdout)
+- **Audit log** — every request recorded with a unique `X-Request-Id`; fan-out to multiple backends simultaneously (SQLite, webhook, stdout); all backends use bounded channels (4096 entries) with `arbit_audit_drops_total` Prometheus counter for backpressure alerting
 - **CloudEvents** — webhook audit backend can emit CNCF CloudEvents 1.0 envelopes (`application/cloudevents+json`), enabling direct ingestion by SIEMs (Splunk, Elastic, Datadog) without custom parsers
-- **Tool Federation** — agents with `federate: true` aggregate tools from all named upstreams into a single merged view; colliding names are prefixed with `<upstream>__`; `tools/call` is transparently routed to the correct upstream
+- **Tool Federation** — agents with `federate: true` aggregate tools from all named upstreams into a single merged view; colliding names are prefixed with `<upstream>__`; `tools/call` is transparently routed to the correct upstream; discovery has a 10-second global timeout to prevent slow upstreams from stalling the gateway
 - **OpenAI Tools Bridge** — `GET /openai/v1/tools` and `POST /openai/v1/execute` let OpenAI function-calling clients use arbit without refactoring; all requests still pass through the full security pipeline
 - **Multiple upstreams** — route different agents to different MCP servers
 - **Circuit breaker** — upstream failures open the circuit; automatic half-open probe after recovery timeout
 - **Health check** — `GET /health` returns upstream status; `503` when any upstream is degraded
-- **Config hot-reload** — reload on `SIGUSR1` or automatically every 30 seconds without restart
+- **Config hot-reload** — reload on `SIGUSR1` or automatically every 30 seconds without restart; failed reloads keep the previous config active and increment `arbit_config_reload_failures_total`
 - **Helm chart** — production-ready chart at `charts/arbit/`; sidecar pattern via `extraContainers`; optional HPA, PDB, NetworkPolicy, PVC; `gateway.yml` rendered from `values.yaml`; secrets injected via `existingSecret` or `env`
 - **Container-ready** — multi-arch Docker image (`linux/amd64` + `linux/arm64`) published to `ghcr.io/nfvelten/arbit` on every release; runs as non-root (uid 10001); `LOG_FORMAT=json` structured logs; `docker-compose.yml` with healthcheck included
 - **Graceful shutdown** — SIGTERM and CTRL-C handled in both HTTP and stdio transports; active connections drained, child process closed, all audit backends flushed before exit — safe for Kubernetes `terminationGracePeriodSeconds`

@@ -2,23 +2,22 @@
 
 ## [Unreleased]
 
-### Fixed
-- **`SchemaCache` replaced with LRU-bounded cache** (`schema_cache.rs`): the previous `HashMap` grew without bound — every new `(agent_id, tool_name)` pair was retained forever. Replaced with `lru::LruCache` capped at 1024 entries; least-recently-used schemas are evicted automatically when the limit is reached. Closes #36.
-- **Federated `tools/list` now has a 10-second global timeout** (`gateway.rs`): `join_all` over all named upstreams was unbounded — a single slow upstream could block the gateway indefinitely. A `tokio::time::timeout(10s)` now wraps the fan-out; if it expires the gateway returns a JSON-RPC `-32603` error immediately. Closes #33.
-- **Hot-reload preserves running config on invalid `gateway.yml`**: if `Config::from_file` returns any error (syntax, I/O, unknown fields), the watch channel is not updated and the previous config remains active. The error is logged via `tracing::error!` with the message `"config reload failed — keeping previous config"`. The new `arbit_config_reload_failures_total` Prometheus counter is incremented on each failure for alerting. Closes #35.
+---
+
+## [0.17.0] — 2026-04-01
 
 ### Security
-- **SSRF guard on OIDC discovery** (`jwt.rs`): `validate_issuer_url` now rejects non-HTTPS schemes, `localhost`, loopback addresses (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16`, `fe80::/10`), private IPv4 ranges (`10/8`, `172.16/12`, `192.168/16`), and unique-local IPv6 (`fc00::/7`) before making any HTTP request for OIDC discovery. Closes #32.
+- **SSRF guard on OIDC discovery** (`jwt.rs`): `validate_issuer_url` now rejects non-HTTPS schemes, `localhost`, loopback (`127.0.0.0/8`, `::1`), link-local (`169.254.0.0/16`, `fe80::/10`), private IPv4 (`10/8`, `172.16/12`, `192.168/16`), and unique-local IPv6 (`fc00::/7`) before making any outbound HTTP request. Closes #32.
+- **Block errors no longer expose internal regex patterns** (`PayloadFilterMiddleware`): client-facing JSON-RPC error messages now return generic reasons (`"sensitive data detected"`, `"prompt injection detected"`) instead of the triggering pattern string. The matched pattern is still recorded in server logs (`tracing::debug!`) for operator visibility. Closes #30.
+- **Agent enumeration via error messages fixed** (`AuthMiddleware`): unknown agent IDs previously produced a distinct `"unknown agent '...'"` error. The reason is now the uniform `"not authorized"` regardless of whether the agent exists. Closes #31.
+- **`tool_matches` DoS fixed** (`config.rs`): replaced O(2^n) recursive backtracking glob matcher with an O(n·m) segment-anchoring scan. A crafted pattern like `*a*a*a*…*` no longer causes exponential blowup. Closes #29.
 
 ### Fixed
-- **`tool_matches` replaced with O(n·m) segment-anchoring algorithm** (`config.rs`): the previous recursive backtracking implementation was O(2^n) with multiple `*` wildcards, enabling a DoS attack via a crafted policy pattern such as `*a*a*a*…*`. The new implementation splits on `*` and scans anchored segments in linear time. Closes #29.
-- **Audit backends use bounded channels** (`SqliteAudit`, `WebhookAudit`, `OpenLineageAudit`): replaced `unbounded_channel` with `channel(4096)` to prevent unbounded memory growth under sustained load. Entries dropped when the channel is full are counted by the new `arbit_audit_drops_total{backend}` Prometheus counter. Closes #28.
-- **Hot-reload preserves running config on invalid `gateway.yml`**: if `Config::from_file` returns any error (syntax, I/O, unknown fields), the watch channel is not updated and the previous config remains active. The error is logged via `tracing::error!` with the message `"config reload failed — keeping previous config"`. The new `arbit_config_reload_failures_total` Prometheus counter is incremented on each failure for alerting. Closes #35.
-- **Blocked notifications no longer receive a JSON-RPC response** (`McpGateway`): JSON-RPC 2.0 §4 requires the server to remain silent when blocking a notification (request without `id`). Previously a `-32603` error was sent anyway, breaking strict-compliant MCP clients. The block decision is still recorded in the audit log. Closes #34.
-
-### Security (continued)
-- **Block errors no longer expose internal regex patterns** (`PayloadFilterMiddleware`): client-facing JSON-RPC error messages now return generic reasons (`"sensitive data detected"`, `"prompt injection detected"`) instead of the triggering pattern string. The matched pattern is still recorded in server logs (`tracing::debug!`) for operator visibility. Closes #30.
-- **Agent enumeration via error messages fixed** (`AuthMiddleware`): unknown agent IDs previously produced a distinct `"unknown agent '...'"` error that allowed attackers to enumerate valid agent names. The reason is now the uniform `"not authorized"` regardless of whether the agent exists. The agent identity is logged server-side only. Closes #31.
+- **`SchemaCache` now LRU-bounded** (`schema_cache.rs`): replaced unbounded `HashMap` with `lru::LruCache` capped at 1024 `(agent_id, tool_name)` entries; least-recently-used schemas are evicted automatically. Closes #36.
+- **Audit backends use bounded channels**: replaced `unbounded_channel` with `channel(4096)` in `SqliteAudit`, `WebhookAudit`, and `OpenLineageAudit`. Dropped entries increment the new `arbit_audit_drops_total{backend}` Prometheus counter. Closes #28.
+- **Federated `tools/list` has a 10-second global timeout** (`gateway.rs`): `join_all` over named upstreams was unbounded — a single slow upstream could stall the gateway indefinitely. Returns JSON-RPC `-32603` on timeout. Closes #33.
+- **Hot-reload preserves running config on failure**: if `Config::from_file` returns any error the watch channel is not updated and the previous config stays active. The new `arbit_config_reload_failures_total` Prometheus counter is incremented on each failure. Closes #35.
+- **Blocked JSON-RPC notifications receive no response** (`McpGateway`): spec §4 requires silence when blocking a notification (request without `id`). Previously a `-32603` error was sent anyway. Closes #34.
 
 ---
 
