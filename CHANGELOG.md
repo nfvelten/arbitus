@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- **`tool_matches` replaced with O(n·m) segment-anchoring algorithm** (`config.rs`): the previous recursive backtracking implementation was O(2^n) with multiple `*` wildcards, enabling a DoS attack via a crafted policy pattern such as `*a*a*a*…*`. The new implementation splits on `*` and scans anchored segments in linear time. Closes #29.
 - **Hot-reload preserves running config on invalid `gateway.yml`**: if `Config::from_file` returns any error (syntax, I/O, unknown fields), the watch channel is not updated and the previous config remains active. The error is logged via `tracing::error!` with the message `"config reload failed — keeping previous config"`. The new `arbit_config_reload_failures_total` Prometheus counter is incremented on each failure for alerting. Closes #35.
 ## [Unreleased]
 
