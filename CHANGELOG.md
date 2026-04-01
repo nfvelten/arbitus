@@ -1,6 +1,9 @@
 # Changelog
 
-<<<<<<< fix/security-error-leakage
+## [Unreleased]
+
+### Fixed
+- **Hot-reload preserves running config on invalid `gateway.yml`**: if `Config::from_file` returns any error (syntax, I/O, unknown fields), the watch channel is not updated and the previous config remains active. The error is logged via `tracing::error!` with the message `"config reload failed — keeping previous config"`. The new `arbit_config_reload_failures_total` Prometheus counter is incremented on each failure for alerting. Closes #35.
 ## [Unreleased]
 
 ### Fixed
@@ -12,8 +15,6 @@
 
 ---
 
-=======
->>>>>>> master
 ## [0.16.0] — 2026-03-31
 
 ### Added
