@@ -345,6 +345,201 @@ mod tests {
         }
     }
 
+    // ── Resources ────────────────────────────────────────────────────────────
+
+    fn make_agent_with_resources(
+        allowed_resources: Option<Vec<&str>>,
+        denied_resources: Vec<&str>,
+    ) -> crate::config::AgentPolicy {
+        let mut p = make_agent(None, vec![], 60);
+        p.allowed_resources = allowed_resources.map(|v| v.into_iter().map(String::from).collect());
+        p.denied_resources = denied_resources.into_iter().map(String::from).collect();
+        p
+    }
+
+    fn make_agent_with_prompts(
+        allowed_prompts: Option<Vec<&str>>,
+        denied_prompts: Vec<&str>,
+    ) -> crate::config::AgentPolicy {
+        let mut p = make_agent(None, vec![], 60);
+        p.allowed_prompts = allowed_prompts.map(|v| v.into_iter().map(String::from).collect());
+        p.denied_prompts = denied_prompts.into_iter().map(String::from).collect();
+        p
+    }
+
+    fn resource_ctx(agent: &str, method: &str, uri: &str) -> McpContext {
+        McpContext {
+            agent_id: agent.to_string(),
+            method: method.to_string(),
+            tool_name: Some(uri.to_string()),
+            arguments: None,
+            client_ip: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn resources_read_allowed_when_no_policy() {
+        let mut agents = HashMap::new();
+        agents.insert("agent".to_string(), make_agent(None, vec![], 60));
+        let mw = make_mw(agents);
+        assert!(matches!(
+            mw.check(&resource_ctx("agent", "resources/read", "file:///data.txt"))
+                .await,
+            Decision::Allow { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn resources_read_blocked_by_denylist() {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent".to_string(),
+            make_agent_with_resources(None, vec!["file:///secret*"]),
+        );
+        let mw = make_mw(agents);
+        assert!(matches!(
+            mw.check(&resource_ctx(
+                "agent",
+                "resources/read",
+                "file:///secret.txt"
+            ))
+            .await,
+            Decision::Block { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn resources_read_blocked_when_not_in_allowlist() {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent".to_string(),
+            make_agent_with_resources(Some(vec!["file:///public/*"]), vec![]),
+        );
+        let mw = make_mw(agents);
+        assert!(matches!(
+            mw.check(&resource_ctx(
+                "agent",
+                "resources/read",
+                "file:///private.txt"
+            ))
+            .await,
+            Decision::Block { .. }
+        ));
+        assert!(matches!(
+            mw.check(&resource_ctx(
+                "agent",
+                "resources/read",
+                "file:///public/readme.txt"
+            ))
+            .await,
+            Decision::Allow { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn resources_subscribe_uses_same_policy_as_read() {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent".to_string(),
+            make_agent_with_resources(None, vec!["file:///forbidden"]),
+        );
+        let mw = make_mw(agents);
+        assert!(matches!(
+            mw.check(&resource_ctx(
+                "agent",
+                "resources/subscribe",
+                "file:///forbidden"
+            ))
+            .await,
+            Decision::Block { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn resources_list_always_allowed_by_auth() {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent".to_string(),
+            make_agent_with_resources(Some(vec!["file:///allowed"]), vec![]),
+        );
+        let mw = make_mw(agents);
+        let ctx = McpContext {
+            agent_id: "agent".to_string(),
+            method: "resources/list".to_string(),
+            tool_name: None,
+            arguments: None,
+            client_ip: None,
+        };
+        assert!(matches!(mw.check(&ctx).await, Decision::Allow { .. }));
+    }
+
+    // ── Prompts ───────────────────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn prompts_get_allowed_when_no_policy() {
+        let mut agents = HashMap::new();
+        agents.insert("agent".to_string(), make_agent(None, vec![], 60));
+        let mw = make_mw(agents);
+        assert!(matches!(
+            mw.check(&resource_ctx("agent", "prompts/get", "summarize"))
+                .await,
+            Decision::Allow { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn prompts_get_blocked_by_denylist() {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent".to_string(),
+            make_agent_with_prompts(None, vec!["admin_*"]),
+        );
+        let mw = make_mw(agents);
+        assert!(matches!(
+            mw.check(&resource_ctx("agent", "prompts/get", "admin_report"))
+                .await,
+            Decision::Block { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn prompts_get_blocked_when_not_in_allowlist() {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent".to_string(),
+            make_agent_with_prompts(Some(vec!["summarize", "translate"]), vec![]),
+        );
+        let mw = make_mw(agents);
+        assert!(matches!(
+            mw.check(&resource_ctx("agent", "prompts/get", "generate_code"))
+                .await,
+            Decision::Block { .. }
+        ));
+        assert!(matches!(
+            mw.check(&resource_ctx("agent", "prompts/get", "summarize"))
+                .await,
+            Decision::Allow { .. }
+        ));
+    }
+
+    #[tokio::test]
+    async fn prompts_list_always_allowed_by_auth() {
+        let mut agents = HashMap::new();
+        agents.insert(
+            "agent".to_string(),
+            make_agent_with_prompts(Some(vec!["only_this"]), vec![]),
+        );
+        let mw = make_mw(agents);
+        let ctx = McpContext {
+            agent_id: "agent".to_string(),
+            method: "prompts/list".to_string(),
+            tool_name: None,
+            arguments: None,
+            client_ip: None,
+        };
+        assert!(matches!(mw.check(&ctx).await, Decision::Allow { .. }));
+    }
+
     #[tokio::test]
     async fn block_reason_for_unknown_agent_is_generic() {
         // The client-facing reason must not reveal whether the agent exists,
@@ -382,11 +577,14 @@ impl Middleware for AuthMiddleware {
     }
 
     async fn check(&self, ctx: &McpContext) -> Decision {
-        if ctx.method != "tools/call" {
+        let method = ctx.method.as_str();
+        if !matches!(
+            method,
+            "tools/call" | "resources/read" | "resources/subscribe" | "prompts/get"
+        ) {
             return Decision::Allow { rl: None };
         }
 
-        let tool = ctx.tool_name.as_deref().unwrap_or("");
         let cfg = self.config.borrow();
         let Some(policy) = cfg
             .agents
@@ -400,20 +598,59 @@ impl Middleware for AuthMiddleware {
             };
         };
 
-        if policy.denied_tools.iter().any(|t| tool_matches(t, tool)) {
-            return Decision::Block {
-                reason: format!("tool '{tool}' explicitly denied"),
-                rl: None,
-            };
-        }
-
-        if let Some(allowed) = &policy.allowed_tools
-            && !allowed.iter().any(|t| tool_matches(t, tool))
-        {
-            return Decision::Block {
-                reason: format!("tool '{tool}' not in allowlist"),
-                rl: None,
-            };
+        match method {
+            "tools/call" => {
+                let tool = ctx.tool_name.as_deref().unwrap_or("");
+                if policy.denied_tools.iter().any(|t| tool_matches(t, tool)) {
+                    return Decision::Block {
+                        reason: format!("tool '{tool}' explicitly denied"),
+                        rl: None,
+                    };
+                }
+                if let Some(allowed) = &policy.allowed_tools
+                    && !allowed.iter().any(|t| tool_matches(t, tool))
+                {
+                    return Decision::Block {
+                        reason: format!("tool '{tool}' not in allowlist"),
+                        rl: None,
+                    };
+                }
+            }
+            "resources/read" | "resources/subscribe" => {
+                let uri = ctx.tool_name.as_deref().unwrap_or("");
+                if policy.denied_resources.iter().any(|t| tool_matches(t, uri)) {
+                    return Decision::Block {
+                        reason: format!("resource '{uri}' explicitly denied"),
+                        rl: None,
+                    };
+                }
+                if let Some(allowed) = &policy.allowed_resources
+                    && !allowed.iter().any(|t| tool_matches(t, uri))
+                {
+                    return Decision::Block {
+                        reason: format!("resource '{uri}' not in allowlist"),
+                        rl: None,
+                    };
+                }
+            }
+            "prompts/get" => {
+                let name = ctx.tool_name.as_deref().unwrap_or("");
+                if policy.denied_prompts.iter().any(|t| tool_matches(t, name)) {
+                    return Decision::Block {
+                        reason: format!("prompt '{name}' explicitly denied"),
+                        rl: None,
+                    };
+                }
+                if let Some(allowed) = &policy.allowed_prompts
+                    && !allowed.iter().any(|t| tool_matches(t, name))
+                {
+                    return Decision::Block {
+                        reason: format!("prompt '{name}' not in allowlist"),
+                        rl: None,
+                    };
+                }
+            }
+            _ => {}
         }
 
         Decision::Allow { rl: None }

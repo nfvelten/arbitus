@@ -239,6 +239,21 @@ pub struct AgentPolicy {
     /// Colliding tool names are prefixed with `<upstream>__` (e.g. `filesystem__read_file`).
     #[serde(default)]
     pub federate: bool,
+    /// Resources this agent may read via `resources/read` or subscribe to via
+    /// `resources/subscribe`. `None` = all allowed (except `denied_resources`).
+    /// Entries support the same glob syntax as `allowed_tools`.
+    #[serde(default)]
+    pub allowed_resources: Option<Vec<String>>,
+    /// Resource URIs explicitly denied. Takes priority over `allowed_resources`.
+    #[serde(default)]
+    pub denied_resources: Vec<String>,
+    /// Prompts this agent may retrieve via `prompts/get`. `None` = all allowed
+    /// (except `denied_prompts`). Entries support the same glob syntax as `allowed_tools`.
+    #[serde(default)]
+    pub allowed_prompts: Option<Vec<String>>,
+    /// Prompt names explicitly denied. Takes priority over `allowed_prompts`.
+    #[serde(default)]
+    pub denied_prompts: Vec<String>,
 }
 
 fn default_rate_limit() -> usize {
@@ -630,6 +645,10 @@ pub(crate) fn make_agent(
         hitl_timeout_secs: 60,
         shadow_tools: vec![],
         federate: false,
+        allowed_resources: None,
+        denied_resources: vec![],
+        allowed_prompts: None,
+        denied_prompts: vec![],
     }
 }
 

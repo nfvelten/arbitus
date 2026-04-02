@@ -38,7 +38,10 @@ impl Middleware for OpaMiddleware {
     }
 
     async fn check(&self, ctx: &McpContext) -> Decision {
-        if ctx.method != "tools/call" {
+        if !matches!(
+            ctx.method.as_str(),
+            "tools/call" | "resources/read" | "resources/subscribe" | "prompts/get"
+        ) {
             return Decision::Allow { rl: None };
         }
 

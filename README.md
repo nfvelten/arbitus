@@ -260,6 +260,10 @@ Each key is an agent name matched against the `clientInfo.name` field in the MCP
 |---|---|
 | `allowed_tools` | Allowlist — only these tools are reachable. Omit to allow all. Supports glob wildcards (`read_*`, `*_file`, `fs/*`). |
 | `denied_tools` | Denylist — these tools are always blocked, even if in the allowlist. Supports glob wildcards. |
+| `allowed_resources` | Allowlist for `resources/read` and `resources/subscribe`. Entries are matched against the resource URI. Omit to allow all. Supports glob wildcards. |
+| `denied_resources` | Resource URIs always denied. Takes priority over `allowed_resources`. Supports glob wildcards. |
+| `allowed_prompts` | Allowlist for `prompts/get`. Entries are matched against the prompt name. Omit to allow all. Supports glob wildcards. |
+| `denied_prompts` | Prompt names always denied. Takes priority over `allowed_prompts`. Supports glob wildcards. |
 | `rate_limit` | Max `tools/call` requests per minute. Default: 60. |
 | `tool_rate_limits` | Per-tool rate limits (calls/min). Checked in addition to `rate_limit`. |
 | `upstream` | Named upstream to use for this agent. Falls back to the default. |

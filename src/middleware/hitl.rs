@@ -27,6 +27,10 @@ mod tests {
             hitl_timeout_secs: timeout_secs,
             shadow_tools: vec![],
             federate: false,
+            allowed_resources: None,
+            denied_resources: vec![],
+            allowed_prompts: None,
+            denied_prompts: vec![],
         }
     }
 
