@@ -50,6 +50,10 @@ mod tests {
             hitl_timeout_secs: 60,
             shadow_tools: vec![],
             federate: false,
+            allowed_resources: None,
+            denied_resources: vec![],
+            allowed_prompts: None,
+            denied_prompts: vec![],
         }
     }
 
@@ -66,6 +70,10 @@ mod tests {
             hitl_timeout_secs: 60,
             shadow_tools: vec![],
             federate: false,
+            allowed_resources: None,
+            denied_resources: vec![],
+            allowed_prompts: None,
+            denied_prompts: vec![],
         }
     }
 

@@ -28,6 +28,10 @@ mod tests {
             hitl_timeout_secs: 60,
             shadow_tools: vec![],
             federate: false,
+            allowed_resources: None,
+            denied_resources: vec![],
+            allowed_prompts: None,
+            denied_prompts: vec![],
         }
     }
 
@@ -131,6 +135,10 @@ mod tests {
                 hitl_timeout_secs: 60,
                 shadow_tools: vec![],
                 federate: false,
+                allowed_resources: None,
+                denied_resources: vec![],
+                allowed_prompts: None,
+                denied_prompts: vec![],
             },
         );
         let mw = make_mw(agents, None);
@@ -330,7 +338,10 @@ impl Middleware for RateLimitMiddleware {
     async fn check(&self, ctx: &McpContext) -> Decision {
         use super::RateLimitInfo;
 
-        if ctx.method != "tools/call" {
+        if !matches!(
+            ctx.method.as_str(),
+            "tools/call" | "resources/read" | "resources/subscribe" | "prompts/get"
+        ) {
             return Decision::Allow { rl: None };
         }
 

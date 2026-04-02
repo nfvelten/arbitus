@@ -124,27 +124,42 @@ impl McpGateway {
         tracing::Span::current().record("method", method);
         tracing::Span::current().record("request_id", request_id);
 
-        if method != "tools/call" {
-            self.audit.record(Arc::new(AuditEntry {
-                ts: SystemTime::now(),
-                agent_id: agent_id.to_string(),
-                method: method.to_string(),
-                tool: None,
-                arguments: None,
-                outcome: Outcome::Forwarded,
-                request_id: request_id.to_string(),
-                input_tokens: 0,
-            }));
-            self.metrics.record(agent_id, "forwarded");
-            return (None, None);
-        }
+        // Determine the governed item name and arguments for methods that require
+        // policy evaluation. Everything else is forwarded without pipeline checks.
+        let (item_name, arguments) = match method {
+            "tools/call" => {
+                let name = msg["params"]["name"].as_str().map(String::from);
+                (name, Some(msg["params"]["arguments"].clone()))
+            }
+            "resources/read" | "resources/subscribe" => {
+                let uri = msg["params"]["uri"].as_str().map(String::from);
+                (uri, Some(msg["params"].clone()))
+            }
+            "prompts/get" => {
+                let name = msg["params"]["name"].as_str().map(String::from);
+                (name, Some(msg["params"].clone()))
+            }
+            _ => {
+                self.audit.record(Arc::new(AuditEntry {
+                    ts: SystemTime::now(),
+                    agent_id: agent_id.to_string(),
+                    method: method.to_string(),
+                    tool: None,
+                    arguments: None,
+                    outcome: Outcome::Forwarded,
+                    request_id: request_id.to_string(),
+                    input_tokens: 0,
+                }));
+                self.metrics.record(agent_id, "forwarded");
+                return (None, None);
+            }
+        };
 
         let id = msg["id"].clone();
-        let tool_name = msg["params"]["name"].as_str().map(String::from);
-        if let Some(t) = &tool_name {
+        if let Some(t) = &item_name {
             tracing::Span::current().record("tool", t.as_str());
         }
-        let arguments = Some(msg["params"]["arguments"].clone());
+        let tool_name = item_name;
 
         let ctx = McpContext {
             agent_id: agent_id.to_string(),
@@ -463,14 +478,15 @@ impl McpGateway {
             forward_fut.await
         };
 
-        let response = if method == "tools/list" {
-            raw_response.map(|r| {
+        let response = match method.as_str() {
+            "tools/list" => raw_response.map(|r| {
                 let filtered = self.filter_tools_response(agent_id, r);
                 self.schema_cache.populate(agent_id, &filtered);
                 filtered
-            })
-        } else {
-            raw_response
+            }),
+            "resources/list" => raw_response.map(|r| self.filter_resources_response(agent_id, r)),
+            "prompts/list" => raw_response.map(|r| self.filter_prompts_response(agent_id, r)),
+            _ => raw_response,
         };
         let response = response.map(|r| self.filter_response(r));
         if method == "tools/call" {
@@ -497,6 +513,52 @@ impl McpGateway {
                     return false;
                 }
                 if let Some(allowed) = &policy.allowed_tools {
+                    return allowed.iter().any(|t| tool_matches(t, name));
+                }
+                true
+            });
+        }
+
+        response
+    }
+
+    /// Filters the resources list in a `resources/list` response according to agent policy.
+    pub fn filter_resources_response(&self, agent_id: &str, mut response: Value) -> Value {
+        let cfg = self.config.borrow();
+        let Some(policy) = cfg.agents.get(agent_id).or(cfg.default_policy.as_ref()) else {
+            return response;
+        };
+
+        if let Some(resources) = response["result"]["resources"].as_array_mut() {
+            resources.retain(|resource| {
+                let uri = resource["uri"].as_str().unwrap_or("");
+                if policy.denied_resources.iter().any(|t| tool_matches(t, uri)) {
+                    return false;
+                }
+                if let Some(allowed) = &policy.allowed_resources {
+                    return allowed.iter().any(|t| tool_matches(t, uri));
+                }
+                true
+            });
+        }
+
+        response
+    }
+
+    /// Filters the prompts list in a `prompts/list` response according to agent policy.
+    pub fn filter_prompts_response(&self, agent_id: &str, mut response: Value) -> Value {
+        let cfg = self.config.borrow();
+        let Some(policy) = cfg.agents.get(agent_id).or(cfg.default_policy.as_ref()) else {
+            return response;
+        };
+
+        if let Some(prompts) = response["result"]["prompts"].as_array_mut() {
+            prompts.retain(|prompt| {
+                let name = prompt["name"].as_str().unwrap_or("");
+                if policy.denied_prompts.iter().any(|t| tool_matches(t, name)) {
+                    return false;
+                }
+                if let Some(allowed) = &policy.allowed_prompts {
                     return allowed.iter().any(|t| tool_matches(t, name));
                 }
                 true
@@ -750,6 +812,108 @@ mod tests {
         assert_eq!(names, vec!["read_file"]);
     }
 
+    // ── filter_resources_response ─────────────────────────────────────────────
+
+    fn resources_response(uris: &[&str]) -> Value {
+        let resources: Vec<Value> = uris.iter().map(|u| json!({"uri": u, "name": u})).collect();
+        json!({"result": {"resources": resources}})
+    }
+
+    #[test]
+    fn filter_resources_response_no_policy_unchanged() {
+        let gw = make_gw(HashMap::new(), vec![]);
+        let resp = resources_response(&["file:///a", "file:///b"]);
+        let out = gw.filter_resources_response("unknown", resp.clone());
+        assert_eq!(out, resp);
+    }
+
+    #[test]
+    fn filter_resources_response_denylist_removes_resource() {
+        let mut agents = HashMap::new();
+        let mut p = make_agent(None, vec![], 60);
+        p.denied_resources = vec!["file:///secret*".to_string()];
+        agents.insert("agent".to_string(), p);
+        let gw = make_gw(agents, vec![]);
+        let resp = resources_response(&["file:///public", "file:///secret_data"]);
+        let out = gw.filter_resources_response("agent", resp);
+        let uris: Vec<_> = out["result"]["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["uri"].as_str().unwrap())
+            .collect();
+        assert_eq!(uris, vec!["file:///public"]);
+    }
+
+    #[test]
+    fn filter_resources_response_allowlist_keeps_only_permitted() {
+        let mut agents = HashMap::new();
+        let mut p = make_agent(None, vec![], 60);
+        p.allowed_resources = Some(vec!["file:///allowed/*".to_string()]);
+        agents.insert("agent".to_string(), p);
+        let gw = make_gw(agents, vec![]);
+        let resp = resources_response(&["file:///allowed/data.txt", "file:///restricted.txt"]);
+        let out = gw.filter_resources_response("agent", resp);
+        let uris: Vec<_> = out["result"]["resources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["uri"].as_str().unwrap())
+            .collect();
+        assert_eq!(uris, vec!["file:///allowed/data.txt"]);
+    }
+
+    // ── filter_prompts_response ────────────────────────────────────────────────
+
+    fn prompts_response(names: &[&str]) -> Value {
+        let prompts: Vec<Value> = names.iter().map(|n| json!({"name": n})).collect();
+        json!({"result": {"prompts": prompts}})
+    }
+
+    #[test]
+    fn filter_prompts_response_no_policy_unchanged() {
+        let gw = make_gw(HashMap::new(), vec![]);
+        let resp = prompts_response(&["summarize", "translate"]);
+        let out = gw.filter_prompts_response("unknown", resp.clone());
+        assert_eq!(out, resp);
+    }
+
+    #[test]
+    fn filter_prompts_response_denylist_removes_prompt() {
+        let mut agents = HashMap::new();
+        let mut p = make_agent(None, vec![], 60);
+        p.denied_prompts = vec!["admin_*".to_string()];
+        agents.insert("agent".to_string(), p);
+        let gw = make_gw(agents, vec![]);
+        let resp = prompts_response(&["summarize", "admin_report"]);
+        let out = gw.filter_prompts_response("agent", resp);
+        let names: Vec<_> = out["result"]["prompts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, vec!["summarize"]);
+    }
+
+    #[test]
+    fn filter_prompts_response_allowlist_keeps_only_permitted() {
+        let mut agents = HashMap::new();
+        let mut p = make_agent(None, vec![], 60);
+        p.allowed_prompts = Some(vec!["summarize".to_string()]);
+        agents.insert("agent".to_string(), p);
+        let gw = make_gw(agents, vec![]);
+        let resp = prompts_response(&["summarize", "generate_code", "translate"]);
+        let out = gw.filter_prompts_response("agent", resp);
+        let names: Vec<_> = out["result"]["prompts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|p| p["name"].as_str().unwrap())
+            .collect();
+        assert_eq!(names, vec!["summarize"]);
+    }
+
     // ── scrub_request_args ────────────────────────────────────────────────────
 
     #[test]
@@ -981,6 +1145,10 @@ mod tests {
                 hitl_timeout_secs: 60,
                 shadow_tools,
                 federate: false,
+                allowed_resources: None,
+                denied_resources: vec![],
+                allowed_prompts: None,
+                denied_prompts: vec![],
             },
         );
         make_gw(agents, vec![])
@@ -1070,6 +1238,10 @@ mod tests {
                 hitl_timeout_secs: 60,
                 shadow_tools: vec![],
                 federate: false,
+                allowed_resources: None,
+                denied_resources: vec![],
+                allowed_prompts: None,
+                denied_prompts: vec![],
             },
         );
         let live = Arc::new(LiveConfig::new(
@@ -1215,6 +1387,10 @@ mod tests {
                 hitl_timeout_secs: 60,
                 shadow_tools: vec![],
                 federate: true,
+                allowed_resources: None,
+                denied_resources: vec![],
+                allowed_prompts: None,
+                denied_prompts: vec![],
             },
         );
         let live = Arc::new(LiveConfig::new(
@@ -1437,6 +1613,10 @@ mod tests {
                 hitl_timeout_secs: 60,
                 shadow_tools: vec![],
                 federate: true,
+                allowed_resources: None,
+                denied_resources: vec![],
+                allowed_prompts: None,
+                denied_prompts: vec![],
             },
         );
         let live = Arc::new(LiveConfig::new(
