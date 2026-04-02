@@ -88,11 +88,16 @@ agents:
   jwt-tester:
     allowed_tools: ["*"]
     rate_limit: 100
+  tool-rate-tester:
+    api_key: "tool-rate-key"
+    allowed_tools: ["*"]
+    rate_limit: 100
+    tool_rate_limits: { echo: 10 }
 rules:
   block_prompt_injection: true
   filter_mode: block
   block_patterns: ["password=[a-zA-Z0-9]+"]
-  ip_rate_limit: 5
+  ip_rate_limit: 500
   opa:
     policy_path: "tests/policy.rego"
 upstreams:
@@ -101,12 +106,19 @@ upstreams:
     circuit_breaker: { max_failures: 2, reset_timeout_secs: 5 }
 EOF
 
+# 1.8 Stdio mock server (used by section 13; section 19 overwrites with its own version)
+cat << 'EOF' > tests/mock-server.sh
+#!/bin/bash
+while read -r line; do [[ $line == *"initialize"* ]] && echo '{"jsonrpc":"2.0","id":1,"result":{"serverInfo":{"name":"mock-stdio","version":"0.1"}}}'; done
+EOF
+chmod +x tests/mock-server.sh
+
 # 2. Cleanup
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up processes and temp files...${NC}"
     kill $DUMMY_PID $ARBIT_PID $NODE_PID 2>/dev/null || true
     fuser -k 3000/tcp 4001/tcp 5000/tcp 2>/dev/null || true
-    rm -rf concurrent_results/ tests/mock-server.sh output-stdio.jsonl tests/fixtures/gateway-hotreload.yml *.log hitl_resp.txt webhook.log tests/node_helper.js tests/policy.rego tests/fixtures/gateway-verify.yml
+    rm -rf concurrent_results/ tests/mock-server.sh output-stdio.jsonl tests/fixtures/gateway-hotreload.yml tests/fixtures/gateway-e2e-ip.yml *.log hitl_resp.txt webhook.log tests/node_helper.js tests/policy.rego tests/fixtures/gateway-verify.yml
 }
 trap cleanup EXIT
 
@@ -200,8 +212,8 @@ show_evidence "$(call_mcp "ghost-agent" '{"jsonrpc":"2.0","id":60,"method":"tool
 
 echo -e "\n${CYAN}⏱️  7. PER-TOOL RATE LIMIT${NC}"
 echo "   Testing tool-specific burst (threshold=10 for 'echo')..."
-for i in {1..11}; do call_mcp "tester-key" "{\"jsonrpc\":\"2.0\",\"id\":$((70+i)),\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"text\":\"$i\"}}}" "secret-key-123" > /dev/null; done
-show_evidence "$(call_mcp "tester-key" '{"jsonrpc":"2.0","id":85,"method":"tools/call","params":{"name":"echo","arguments":{"text":"burst"}}}' "secret-key-123")"
+for i in {1..11}; do call_mcp "tool-rate-tester" "{\"jsonrpc\":\"2.0\",\"id\":$((70+i)),\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"text\":\"$i\"}}}" "tool-rate-key" > /dev/null; done
+show_evidence "$(call_mcp "tool-rate-tester" '{"jsonrpc":"2.0","id":85,"method":"tools/call","params":{"name":"echo","arguments":{"text":"burst"}}}' "tool-rate-key")"
 
 echo -e "\n${CYAN}👤 8. SHADOW TOOLS${NC}"
 echo "   Testing shadow mode (intercepted but never forwarded to upstream)..."
@@ -254,7 +266,8 @@ echo "   Total persistent entries: $C"
 
 echo -e "\n${CYAN}⏱️  17. IP-BASED RATE LIMIT${NC}"
 echo "   Testing infrastructure-level protection (global requests per client IP)..."
-./target/debug/arbit tests/fixtures/gateway-e2e.yml > arbit.log 2>&1 &
+sed 's/ip_rate_limit: 500/ip_rate_limit: 5/' tests/fixtures/gateway-e2e.yml > tests/fixtures/gateway-e2e-ip.yml
+./target/debug/arbit tests/fixtures/gateway-e2e-ip.yml > arbit.log 2>&1 &
 ARBIT_PID=$! && sleep 2
 for i in {1..12}; do call_mcp "tester-key" "{\"jsonrpc\":\"2.0\",\"id\":$i,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"text\":\"ip\"}}}" "secret-key-123" > /dev/null; done
 show_evidence "$(call_mcp "tester-key" '{"jsonrpc":"2.0","id":170,"method":"tools/call","params":{"name":"echo","arguments":{"text":"ip-blocked"}}}' "secret-key-123")"
