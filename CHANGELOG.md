@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.18.0] — 2026-04-02
 
 ### Added
 - **mTLS agent authentication** (`transport/http.rs`, `config.rs`, `live_config.rs`): agents can now authenticate via mutual TLS instead of a static API key. Set `tls.client_ca` in `gateway.yml` to enable client certificate verification, and set `mtls_identity` on any `AgentPolicy` to the expected CN (Common Name) of the agent's certificate. The gateway maps the verified CN to an agent name at connection time. CN-to-agent mapping is hot-reloaded with the rest of the config. Closes #9.
@@ -8,8 +8,6 @@
 - **OPA/Rego policy engine** (`middleware/opa.rs`, `config.rs`): embedded Rego policy evaluation via `regorus`. Declare `rules.opa.policy_path` in `gateway.yml` to gate every `tools/call` against a Rego policy. Input exposes `agent_id`, `method`, `tool_name`, `arguments`, and `client_ip`. Defaults to `data.mcp.allow`; any falsy result or evaluation error blocks the request. Hot-reload picks up policy file changes automatically. Closes #8.
 - **Observability Dashboard enhancements** (`transport/http.rs`): rebuilt `/dashboard` with filter bar (agent, outcome, tool, since), summary stats cards (total, allowed, blocked, block rate %), paginated audit table (100 entries/page), and operator **kill switch** — block/unblock individual tools from the UI without restarting the gateway. Blocked tools return a JSON-RPC error immediately, before the middleware pipeline. Closes #4.
 - **Immutable audit log — hash chain integrity** (`audit/sqlite.rs`): every new entry stores a `prev_hash` and an `entry_hash` (SHA-256 of the previous hash + all fields). Existing databases are migrated transparently; legacy rows are skipped during verification. New `arbit verify-log <db>` subcommand walks the chain and exits non-zero if any row is missing, tampered, or chain-broken. Closes #10.
-
-### Added
 - **OpenBao secret management** (`secrets/`, `config.rs`): native integration with OpenBao (Vault-compatible). Declare a `secrets:` block in `gateway.yml` to fetch secret values at startup and inject them into the config before the gateway starts. Supports `token`, `approle`, and `kubernetes` auth methods. The `SecretsProvider` trait enables mocking in tests. Closes #22.
 - **OAuth 2.1 + PKCE for upstream authentication** (`oauth.rs`, `upstream/http.rs`, `transport/http.rs`): arbit can now authenticate itself to upstream MCP servers using the authorization code flow with PKCE (RFC 7636). Configure `oauth:` under a named upstream, visit the printed authorization URL once, and arbit refreshes tokens automatically. The `/oauth/callback` endpoint handles the provider redirect. Closes #3.
 

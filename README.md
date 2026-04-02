@@ -79,6 +79,13 @@ cargo build --release
 ### Docker
 
 ```sh
+docker pull ghcr.io/nfvelten/arbit:latest
+docker run --rm -v $(pwd)/gateway.yml:/app/gateway.yml ghcr.io/nfvelten/arbit:latest
+```
+
+Or with docker-compose:
+
+```sh
 docker-compose up
 ```
 
@@ -831,7 +838,7 @@ curl http://localhost:4000/health
 ```json
 {
   "status": "ok",
-  "version": "0.7.0",
+  "version": "0.18.0",
   "upstreams": {
     "default": true,
     "filesystem": true,

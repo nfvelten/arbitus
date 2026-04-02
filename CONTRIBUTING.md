@@ -1,66 +1,97 @@
-# Contributing to mcp-gateway
+# Contributing to arbit
 
 Contributions are welcome — bug fixes, new features, tests, and documentation.
 
 ## Before you start
 
-For anything beyond a small fix, open an issue first to discuss the approach. This avoids wasted work if the direction doesn't fit the project.
+For anything beyond a small fix, open an issue first to discuss the approach. This avoids wasted work if the direction doesn't fit the project. See [CLAUDE.md](CLAUDE.md) for the full development workflow and design principles.
 
 ## Setup
 
 ```bash
-# Prerequisites: Rust stable, Node.js (for the filesystem MCP server used in tests)
-git clone https://github.com/nfvelten/mcp-gateway
-cd mcp-gateway
+# Prerequisites: Rust stable (1.85+)
+git clone https://github.com/nfvelten/arbit
+cd arbit
 cargo build
 ```
 
+Node.js is only needed for the stdio integration tests (`#[ignore]` by default).
+
 ## Running the tests
 
-The integration tests spin up real processes — no mocking.
-
 ```bash
-# HTTP transport (requires the dummy MCP server)
-bash test-http.sh
+# All unit tests (fast, no external deps)
+cargo test --lib
 
-# stdio transport (requires npx + @modelcontextprotocol/server-filesystem)
-bash test-stdio.sh
+# All integration tests (spins up real gateway + dummy MCP server)
+cargo test --test http_gateway
+cargo test --test security_coverage
+cargo test --test attack_scenarios
+
+# stdio tests (requires npx — excluded from CI)
+cargo test --test stdio_gateway -- --ignored
+
+# Full suite
+cargo test --all-features
 ```
 
-Both scripts print `N passed | 0 failed` on success.
+## Code quality (required before every push)
+
+```bash
+cargo fmt --check        # must pass — no formatting violations
+cargo clippy -- -D warnings  # must pass — zero warnings
+cargo test --lib         # all unit tests green
+```
 
 ## Project structure
 
 ```
 src/
-  audit/          # AuditLog trait + backends (sqlite, stdout, webhook, fanout)
-  middleware/     # Pipeline middleware (auth, rate_limit, payload_filter)
-  transport/      # Transport trait + HTTP and stdio implementations
-  upstream/       # McpUpstream trait + HTTP upstream with circuit breaker
   bin/
-    gateway.rs    # Main binary — wires config, pipeline, transport
-    audit.rs      # CLI for querying the SQLite audit log
-    dummy_server.rs # Minimal MCP server used in HTTP integration tests
-  config.rs       # YAML config parsing and validation
-  gateway.rs      # Core McpGateway — intercept, handle, filter
-  live_config.rs  # Hot-reloadable config shared via watch::channel
-  metrics.rs      # Prometheus-compatible metrics
+    arbit.rs             # Main binary — wires config, pipeline, transport
+    audit.rs             # arbit audit/verify-log CLI
+    dummy_server.rs      # Minimal MCP server used in integration tests
+  audit/                 # AuditLog trait + backends (sqlite, stdout, webhook, openlineage, fanout)
+  middleware/            # Trait-based pipeline (auth, rate_limit, payload_filter, schema, hitl, opa)
+  transport/             # Transport trait + HTTP (axum) and stdio implementations
+  upstream/              # McpUpstream trait + HTTP upstream with circuit breaker
+  secrets/               # SecretsProvider trait + OpenBao backend
+  config.rs              # YAML config parsing and validation
+  gateway.rs             # Core McpGateway — intercept, handle, filter, federate
+  live_config.rs         # Hot-reloadable config via tokio::sync::watch
+  jwt.rs                 # JWT/OIDC validation (HS256, RS256, JWKS, multi-provider)
+  oauth.rs               # OAuth 2.1 + PKCE token management
+  metrics.rs             # Prometheus metrics
+  cost.rs                # Token estimation utilities
+  decode.rs              # Encoding-aware payload normalisation (Base64, URL, Unicode)
+  prompt_injection.rs    # Built-in prompt injection patterns
+  schema_cache.rs        # LRU-bounded inputSchema cache per agent
+  hitl.rs                # HitlStore — pending approval requests
+tests/
+  common/mod.rs          # Shared harness: gateway + dummy server on free ports
+  http_gateway.rs        # HTTP integration tests
+  security_coverage.rs   # Payload filter and injection detection
+  attack_scenarios.rs    # Real-world attack scenarios
+  stdio_gateway.rs       # Stdio tests (require npx, ignored in CI)
 ```
 
 ## Design principles
 
-- **Traits over structs** — `Transport`, `McpUpstream`, `AuditLog` are all traits; adding a backend means implementing the trait, not touching the core.
-- **No blocking in async context** — SQLite writes go through `spawn_blocking`; `record()` is fire-and-forget via an unbounded channel.
-- **Hot-reload without restart** — `tokio::sync::watch` propagates a new `Arc<LiveConfig>` to all middleware on every reload. Middleware snapshots what it needs and drops the borrow before any `.await`.
-- **Integration tests over unit tests** — the test scripts exercise real binaries and a real MCP server. Unit tests for logic that can be tested in isolation are welcome alongside them.
+- **Traits over structs** — `Transport`, `McpUpstream`, `AuditLog`, `Middleware` are traits; new implementations don't touch the core.
+- **No blocking in async context** — SQLite and heavy I/O go through `spawn_blocking`; audit `record()` is fire-and-forget via bounded channels.
+- **Hot-reload without restart** — `tokio::sync::watch` propagates a new `Arc<LiveConfig>` to all middleware. Middleware snapshots what it needs and drops the borrow before any `.await` to stay `Send`.
+- **Security by default** — block patterns, rate limits, and auth checks apply to all agents unless explicitly relaxed. New inputs validated at the boundary.
+- **Tests before merge** — every new public function or behaviour must have at least one unit test; security-sensitive paths require both a happy-path and an adversarial test.
 
-## Sending a PR
+## Workflow
 
-1. Fork the repo and create a branch from `master`.
-2. Make your changes. Add or update tests if the change is observable behavior.
-3. Run `cargo clippy` and `cargo fmt` before pushing.
-4. Open a PR with a clear description of what and why.
+1. Open or reference a GitHub issue
+2. Create a branch: `feat/<topic>` or `fix/<topic>` from `master`
+3. Make your changes with tests
+4. Update `README.md` and `CHANGELOG.md` under `[Unreleased]`
+5. Run the quality checklist above
+6. Open a PR referencing the issue (`Closes #N`)
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the Apache License 2.0.
+By contributing, you agree that your contributions will be licensed under the MIT License.

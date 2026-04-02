@@ -2,8 +2,8 @@ apiVersion: v2
 name: arbit
 description: Security proxy for MCP servers — auth, rate limiting, payload filtering, and audit logging between AI agents and MCP servers.
 type: application
-version: 0.1.0
-appVersion: "0.14.0"
+version: 0.18.0
+appVersion: "0.18.0"
 home: https://github.com/nfvelten/arbit
 sources:
   - https://github.com/nfvelten/arbit
