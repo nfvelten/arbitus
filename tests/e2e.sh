@@ -1,5 +1,5 @@
 #!/bin/bash
-# tests/e2e.sh - THE ULTIMATE 19-SECTION VERBOSE E2E TEST SUITE FOR ARBIT
+# tests/e2e.sh - ARBITUS E2E TEST SUITE
 
 # No set -e: the suite must run all sections and report failures at the end.
 
@@ -8,7 +8,7 @@ GREEN='\033[0;32m'; RED='\033[0;31m'; YELLOW='\033[0;33m'; CYAN='\033[0;36m'
 MAGENTA='\033[0;35m'; BLUE='\033[0;34m'; NC='\033[0m'
 
 echo -e "${MAGENTA}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${MAGENTA}║             ARBIT ULTIMATE 19-SECTION E2E SUITE            ║${NC}"
+echo -e "${MAGENTA}║             ARBITUS E2E SUITE            ║${NC}"
 echo -e "${MAGENTA}╚════════════════════════════════════════════════════════════╝${NC}"
 
 # ── Result tracking ────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ assert_body_not() {
 
 # 1. Build
 echo -e "${YELLOW}📦 Building binaries...${NC}"
-cargo build --quiet --bin arbit --bin dummy-server
+cargo build --quiet --bin arbitus --bin dummy-server
 
 # 1.5 OPA Policy
 cat << 'EOF' > tests/policy.rego
@@ -53,7 +53,7 @@ if (mode === 'sign') {
     const sub = process.argv[3] || 'jwt-tester';
     const secret = "super-secret-key-for-jwt-testing-123";
     const header = { alg: "HS256", typ: "JWT" };
-    const payload = { iss: "arbit-test-suite", aud: "arbit-users", sub: sub, iat: Math.floor(Date.now()/1000), exp: Math.floor(Date.now()/1000)+3600 };
+    const payload = { iss: "arbitus-test-suite", aud: "arbitus-users", sub: sub, iat: Math.floor(Date.now()/1000), exp: Math.floor(Date.now()/1000)+3600 };
     const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
     const parts = `${b64(header)}.${b64(payload)}`;
     const sig = crypto.createHmac('sha256', secret).update(parts).digest('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
@@ -80,8 +80,8 @@ audits:
     url: "http://127.0.0.1:5000/audit"
 auth:
   secret: "super-secret-key-for-jwt-testing-123"
-  issuer: "arbit-test-suite"
-  audience: "arbit-users"
+  issuer: "arbitus-test-suite"
+  audience: "arbitus-users"
 default_policy:
   allowed_tools: ["echo"]
   rate_limit: 10
@@ -136,7 +136,7 @@ chmod +x tests/mock-server.sh
 # 2. Cleanup
 cleanup() {
     echo -e "\n${YELLOW}🧹 Cleaning up processes and temp files...${NC}"
-    kill $DUMMY_PID $ARBIT_PID $NODE_PID 2>/dev/null || true
+    kill $DUMMY_PID $ARBITUS_PID $NODE_PID 2>/dev/null || true
     fuser -k 3000/tcp 4001/tcp 5000/tcp 2>/dev/null || true
     rm -rf concurrent_results/ tests/mock-server.sh output-stdio.jsonl tests/fixtures/gateway-hotreload.yml tests/fixtures/gateway-e2e-ip.yml *.log hitl_resp.txt webhook.log tests/node_helper.js tests/policy.rego tests/fixtures/gateway-verify.yml
 }
@@ -158,7 +158,7 @@ show_evidence() {
   local res=$1; local body=${res%|*}; local rid=${res#*|}
   echo -e "      ${BLUE}ReqID:${NC} $rid"
   echo -e "      ${BLUE}Body:${NC} $body"
-  local log_line=$(grep "$rid" arbit.log | tail -n 1 || true)
+  local log_line=$(grep "$rid" arbitus.log | tail -n 1 || true)
   [[ -n "$log_line" ]] && echo -e "      ${BLUE}Log:${NC} ${log_line:0:150}..."
   if [[ -f "e2e-audit.db" ]] && command -v sqlite3 >/dev/null; then
     sleep 1.2
@@ -174,8 +174,8 @@ start_dummy
 node tests/node_helper.js webhook > webhook_server.log 2>&1 &
 NODE_PID=$!
 cp tests/fixtures/gateway-e2e.yml tests/fixtures/gateway-hotreload.yml
-./target/debug/arbit tests/fixtures/gateway-hotreload.yml > arbit.log 2>&1 &
-ARBIT_PID=$!
+./target/debug/arbitus tests/fixtures/gateway-hotreload.yml > arbitus.log 2>&1 &
+ARBITUS_PID=$!
 sleep 4
 
 # ── SECTIONS ──────────────────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ show_evidence "$RES"; assert_body "password pattern blocked" "${RES%|*}" "blocke
 echo -e "\n${CYAN}🔄 2. HOT RELOAD (SIGUSR1)${NC}"
 echo "   Modifying config to block 'read_*' wildcards..."
 sed -i 's/read_\*/blocked_read/g' tests/fixtures/gateway-hotreload.yml
-kill -USR1 $ARBIT_PID && sleep 2
+kill -USR1 $ARBITUS_PID && sleep 2
 echo "   Testing hot-reloaded tool restriction..."
 RES=$(call_mcp "cursor" '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"read_file","arguments":{"path":"/etc/passwd"}}}')
 show_evidence "$RES"; assert_body "hot-reload blocked read_file" "${RES%|*}" "not in allowlist"
@@ -289,9 +289,9 @@ else fail "SSE — no 'event: endpoint' in response"; fi
 echo -e "\n${CYAN}📊 11. DASHBOARD & METRICS${NC}"
 echo "   Verifying Prometheus metrics collection..."
 METRICS=$(curl -s http://127.0.0.1:4001/metrics)
-echo "$METRICS" | grep "arbit_requests_total" | tail -n 3
-if echo "$METRICS" | grep -q "arbit_requests_total"; then pass "Prometheus metrics present"
-else fail "arbit_requests_total missing from /metrics"; fi
+echo "$METRICS" | grep "arbitus_requests_total" | tail -n 3
+if echo "$METRICS" | grep -q "arbitus_requests_total"; then pass "Prometheus metrics present"
+else fail "arbitus_requests_total missing from /metrics"; fi
 
 echo -e "\n${CYAN}🧵 12. CONCURRENCY & ISOLATION${NC}"
 echo "   Firing parallel requests from different agents to check state isolation..."
@@ -309,7 +309,7 @@ else fail "concurrency — expected 5 successful echoes, got $ECHO_COUNT"; fi
 echo -e "\n${CYAN}💻 13. STDIO TRANSPORT${NC}"
 echo "   Testing Stdio transport handshake (subprocess communication)..."
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"c"}}}' \
-  | timeout 5s ./target/debug/arbit tests/fixtures/gateway-e2e-stdio.yml > output-stdio.jsonl 2>/dev/null || true
+  | timeout 5s ./target/debug/arbitus tests/fixtures/gateway-e2e-stdio.yml > output-stdio.jsonl 2>/dev/null || true
 if grep -q "mock-stdio" output-stdio.jsonl; then pass "stdio handshake OK"
 else fail "stdio handshake — 'mock-stdio' not found in output"; fi
 
@@ -329,7 +329,7 @@ else fail "webhook fan-out — webhook.log is empty"; fi
 
 echo -e "\n${CYAN}🕵️  16. SQLITE INSPECTION${NC}"
 echo "   Validating SQLite audit log richness and consistency..."
-kill $ARBIT_PID && sleep 2
+kill $ARBITUS_PID && sleep 2
 AUDIT_COUNT=$(sqlite3 e2e-audit.db "SELECT COUNT(*) FROM audit_log;" 2>/dev/null || echo 0)
 echo "   Total persistent entries: $AUDIT_COUNT"
 if [[ $AUDIT_COUNT -gt 10 ]]; then pass "$AUDIT_COUNT audit entries persisted"
@@ -338,8 +338,8 @@ else fail "sqlite — expected > 10 audit entries, got $AUDIT_COUNT"; fi
 echo -e "\n${CYAN}⏱️  17. IP-BASED RATE LIMIT${NC}"
 echo "   Testing infrastructure-level protection (global requests per client IP)..."
 sed 's/ip_rate_limit: 500/ip_rate_limit: 5/' tests/fixtures/gateway-e2e.yml > tests/fixtures/gateway-e2e-ip.yml
-./target/debug/arbit tests/fixtures/gateway-e2e-ip.yml > arbit.log 2>&1 &
-ARBIT_PID=$! && sleep 2
+./target/debug/arbitus tests/fixtures/gateway-e2e-ip.yml > arbitus.log 2>&1 &
+ARBITUS_PID=$! && sleep 2
 for i in {1..12}; do
   call_mcp "tester-key" "{\"jsonrpc\":\"2.0\",\"id\":$i,\"method\":\"tools/call\",\"params\":{\"name\":\"echo\",\"arguments\":{\"text\":\"ip\"}}}" "secret-key-123" > /dev/null
 done
@@ -367,14 +367,14 @@ transport: { type: stdio, server: ["$SCRIPT_ABS"], verify: { sha256: "$H" } }
 agents: { cursor: { allowed_tools: ["*"] } }
 EOF
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"c"}}}' \
-  | ./target/debug/arbit tests/fixtures/gateway-verify.yml > output-stdio.jsonl 2>/dev/null || true
+  | ./target/debug/arbitus tests/fixtures/gateway-verify.yml > output-stdio.jsonl 2>/dev/null || true
 if grep -q "ok" output-stdio.jsonl; then pass "valid binary hash — spawned correctly"
 else fail "binary verification — valid hash rejected"; fi
 
 echo "   Tampering binary to test mismatch rejection..."
 echo "# tamper" >> tests/mock-server.sh
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"c"}}}' \
-  | ./target/debug/arbit tests/fixtures/gateway-verify.yml > output-stdio.jsonl 2>/dev/null || true
+  | ./target/debug/arbitus tests/fixtures/gateway-verify.yml > output-stdio.jsonl 2>/dev/null || true
 if ! grep -q "ok" output-stdio.jsonl; then pass "tampered binary blocked correctly"
 else fail "binary verification — tampered binary was NOT blocked"; fi
 

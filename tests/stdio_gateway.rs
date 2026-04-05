@@ -23,7 +23,7 @@ fn setup_test_files() {
 /// Write a config, spawn the gateway in stdio mode, return the child.
 async fn stdio_gateway(config: &str) -> tokio::process::Child {
     let port = free_port().await;
-    let path = format!("/tmp/arbit-stdio-test-{port}.yml");
+    let path = format!("/tmp/arbitus-stdio-test-{port}.yml");
     std::fs::write(&path, config).unwrap();
 
     tokio::process::Command::new(GATEWAY_BIN)

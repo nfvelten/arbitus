@@ -461,7 +461,7 @@ async fn metrics_endpoint_tracks_outcomes() {
         .unwrap();
 
     assert!(
-        metrics.contains("arbit_requests_total"),
+        metrics.contains("arbitus_requests_total"),
         "metric name missing"
     );
     assert!(
@@ -963,7 +963,7 @@ rules:
 #[tokio::test]
 async fn audit_log_records_allowed_and_blocked_calls() {
     let unique = free_port().await;
-    let audit_path = format!("/tmp/arbit-audit-{unique}.db");
+    let audit_path = format!("/tmp/arbitus-audit-{unique}.db");
 
     let config = r#"agents:
   cursor:
@@ -1556,7 +1556,7 @@ async fn reject_unknown_id_returns_404() {
 
 #[tokio::test]
 async fn shadow_mode_audit_outcome_is_shadowed() {
-    let db_path = format!("/tmp/arbit-shadow-audit-test-{}.db", std::process::id());
+    let db_path = format!("/tmp/arbitus-shadow-audit-test-{}.db", std::process::id());
     let h = harness_with_db_audit(SHADOW_CONFIG, &db_path).await;
     let (sid, _) = h.init("shadow-agent").await;
 

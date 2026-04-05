@@ -9,8 +9,8 @@ audits:
     url: "http://127.0.0.1:5000/audit"
 auth:
   secret: "super-secret-key-for-jwt-testing-123"
-  issuer: "arbit-test-suite"
-  audience: "arbit-users"
+  issuer: "arbitus-test-suite"
+  audience: "arbitus-users"
 default_policy:
   allowed_tools: ["echo"]
   rate_limit: 10
@@ -37,11 +37,16 @@ agents:
   jwt-tester:
     allowed_tools: ["*"]
     rate_limit: 100
+  tool-rate-tester:
+    api_key: "tool-rate-key"
+    allowed_tools: ["*"]
+    rate_limit: 100
+    tool_rate_limits: { echo: 10 }
 rules:
   block_prompt_injection: true
   filter_mode: block
   block_patterns: ["password=[a-zA-Z0-9]+"]
-  ip_rate_limit: 5
+  ip_rate_limit: 500
   opa:
     policy_path: "tests/policy.rego"
 upstreams:

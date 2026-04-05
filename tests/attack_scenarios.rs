@@ -23,7 +23,7 @@ use std::time::Duration;
 #[tokio::test]
 async fn scenario_evasion_gauntlet() {
     let unique = free_port().await;
-    let audit_path = format!("/tmp/arbit-scenario-gauntlet-{unique}.db");
+    let audit_path = format!("/tmp/arbitus-scenario-gauntlet-{unique}.db");
 
     let config = r#"agents:
   attacker:

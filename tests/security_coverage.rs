@@ -6,7 +6,7 @@
 /// to make it green.
 ///
 /// This is the source of truth for "does our default config catch this attack?".
-use arbit::{
+use arbitus::{
     gateway::redact_value,
     live_config::LiveConfig,
     middleware::{Decision, McpContext, Middleware, payload_filter::PayloadFilterMiddleware},
@@ -49,7 +49,7 @@ fn gateway_injection_patterns() -> Vec<Regex> {
 }
 
 fn make_filter_mw(block: Vec<Regex>, injection: Vec<Regex>) -> PayloadFilterMiddleware {
-    use arbit::config::FilterMode;
+    use arbitus::config::FilterMode;
     let live = Arc::new(LiveConfig::new(
         HashMap::new(),
         block,
