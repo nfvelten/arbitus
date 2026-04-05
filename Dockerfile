@@ -11,16 +11,16 @@ WORKDIR /build
 # without re-running when only application source changes.
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir -p src/bin \
-    && echo "fn main() {}" > src/bin/arbit.rs \
+    && echo "fn main() {}" > src/bin/arbitus.rs \
     && echo "fn main() {}" > src/bin/dummy_server.rs \
     && echo "" > src/lib.rs \
-    && cargo build --release --bin arbit \
+    && cargo build --release --bin arbitus \
     && rm -rf src
 
 # Build the real binary
 COPY src ./src
 RUN touch src/lib.rs \
-    && cargo build --release --bin arbit
+    && cargo build --release --bin arbitus
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────
 # Static binary + ca-certificates in a minimal image.
@@ -31,12 +31,12 @@ FROM debian:bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates wget \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd --gid 10001 arbit \
-    && useradd --uid 10001 --gid arbit --no-create-home --shell /sbin/nologin arbit
+    && groupadd --gid 10001 arbitus \
+    && useradd --uid 10001 --gid arbitus --no-create-home --shell /sbin/nologin arbitus
 
 WORKDIR /app
 
-COPY --from=builder /build/target/release/arbit /usr/local/bin/arbit
+COPY --from=builder /build/target/release/arbitus /usr/local/bin/arbitus
 
 # Bundle the example config — override at runtime with -v or ConfigMap mount
 COPY gateway.example.yml /app/gateway.yml
@@ -44,12 +44,12 @@ COPY gateway.example.yml /app/gateway.yml
 EXPOSE 4000
 
 # Run as non-root by default
-USER arbit
+USER arbitus
 
 # LOG_FORMAT=json  → structured JSON logs (recommended for log aggregators)
 # LOG_LEVEL=info   → log verbosity (debug | info | warn | error)
 ENV LOG_FORMAT=json \
     LOG_LEVEL=info
 
-ENTRYPOINT ["arbit"]
+ENTRYPOINT ["arbitus"]
 CMD ["start", "/app/gateway.yml"]

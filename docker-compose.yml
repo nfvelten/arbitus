@@ -1,7 +1,7 @@
 services:
   gateway:
     # Use a published release image or build locally:
-    #   image: ghcr.io/nfvelten/arbit:latest
+    #   image: ghcr.io/nfvelten/arbitus:latest
     build: .
     ports:
       - "4000:4000"
@@ -16,8 +16,8 @@ services:
       # Log verbosity: debug | info | warn | error
       LOG_LEVEL: info
       # Inject secrets via env vars instead of hardcoding in gateway.yml:
-      # ARBIT_ADMIN_TOKEN: "your-secret-token"
-      # ARBIT_UPSTREAM_URL: "http://mcp-server:3000/mcp"
+      # ARBITUS_ADMIN_TOKEN: "your-secret-token"
+      # ARBITUS_UPSTREAM_URL: "http://mcp-server:3000/mcp"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:4000/health || exit 1"]
