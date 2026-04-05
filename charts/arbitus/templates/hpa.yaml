@@ -2,14 +2,14 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "arbit.fullname" . }}
+  name: {{ include "arbitus.fullname" . }}
   labels:
-    {{- include "arbit.labels" . | nindent 4 }}
+    {{- include "arbitus.labels" . | nindent 4 }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "arbit.fullname" . }}
+    name: {{ include "arbitus.fullname" . }}
   minReplicas: {{ .Values.autoscaling.minReplicas }}
   maxReplicas: {{ .Values.autoscaling.maxReplicas }}
   metrics:

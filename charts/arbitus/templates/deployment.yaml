@@ -1,16 +1,16 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "arbit.fullname" . }}
+  name: {{ include "arbitus.fullname" . }}
   labels:
-    {{- include "arbit.labels" . | nindent 4 }}
+    {{- include "arbitus.labels" . | nindent 4 }}
 spec:
   {{- if not .Values.autoscaling.enabled }}
   replicas: {{ .Values.replicaCount }}
   {{- end }}
   selector:
     matchLabels:
-      {{- include "arbit.selectorLabels" . | nindent 6 }}
+      {{- include "arbitus.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       annotations:
@@ -20,7 +20,7 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "arbit.selectorLabels" . | nindent 8 }}
+        {{- include "arbitus.selectorLabels" . | nindent 8 }}
         {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -29,7 +29,7 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "arbit.serviceAccountName" . }}
+      serviceAccountName: {{ include "arbitus.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
@@ -38,10 +38,10 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: arbit
+        - name: arbitus
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ include "arbit.imageTag" . }}"
+          image: "{{ .Values.image.repository }}:{{ include "arbitus.imageTag" . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args:
             - start
@@ -87,11 +87,11 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: {{ include "arbit.fullname" . }}
+            name: {{ include "arbitus.fullname" . }}
         {{- if .Values.persistence.enabled }}
         - name: audit-data
           persistentVolumeClaim:
-            claimName: {{ .Values.persistence.existingClaim | default (include "arbit.fullname" .) }}
+            claimName: {{ .Values.persistence.existingClaim | default (include "arbitus.fullname" .) }}
         {{- end }}
         {{- with .Values.extraVolumes }}
         {{- toYaml . | nindent 8 }}

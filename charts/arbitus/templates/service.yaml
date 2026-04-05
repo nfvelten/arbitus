@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "arbit.fullname" . }}
+  name: {{ include "arbitus.fullname" . }}
   labels:
-    {{- include "arbit.labels" . | nindent 4 }}
+    {{- include "arbitus.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,4 +12,4 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "arbit.selectorLabels" . | nindent 4 }}
+      {{- include "arbitus.selectorLabels" . | nindent 4 }}

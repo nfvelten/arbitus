@@ -1,7 +1,7 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "arbit.name" -}}
+{{- define "arbitus.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
@@ -9,7 +9,7 @@ Expand the name of the chart.
 Create a default fully qualified app name.
 We truncate at 63 chars because some Kubernetes name fields are limited to this.
 */}}
-{{- define "arbit.fullname" -}}
+{{- define "arbitus.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -25,16 +25,16 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this.
 {{/*
 Create chart label.
 */}}
-{{- define "arbit.chart" -}}
+{{- define "arbitus.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels.
 */}}
-{{- define "arbit.labels" -}}
-helm.sh/chart: {{ include "arbit.chart" . }}
-{{ include "arbit.selectorLabels" . }}
+{{- define "arbitus.labels" -}}
+helm.sh/chart: {{ include "arbitus.chart" . }}
+{{ include "arbitus.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -44,17 +44,17 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{/*
 Selector labels.
 */}}
-{{- define "arbit.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "arbit.name" . }}
+{{- define "arbitus.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "arbitus.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 ServiceAccount name.
 */}}
-{{- define "arbit.serviceAccountName" -}}
+{{- define "arbitus.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "arbit.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "arbitus.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
@@ -63,6 +63,6 @@ ServiceAccount name.
 {{/*
 Image tag — defaults to chart appVersion.
 */}}
-{{- define "arbit.imageTag" -}}
+{{- define "arbitus.imageTag" -}}
 {{- .Values.image.tag | default .Chart.AppVersion }}
 {{- end }}

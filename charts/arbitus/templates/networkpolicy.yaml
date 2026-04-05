@@ -2,21 +2,21 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "arbit.fullname" . }}
+  name: {{ include "arbitus.fullname" . }}
   labels:
-    {{- include "arbit.labels" . | nindent 4 }}
+    {{- include "arbitus.labels" . | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "arbit.selectorLabels" . | nindent 6 }}
+      {{- include "arbitus.selectorLabels" . | nindent 6 }}
   policyTypes:
     - Ingress
   ingress:
-    # Allow traffic from pods labelled arbit-client: "true" (AI agents)
+    # Allow traffic from pods labelled arbitus-client: "true" (AI agents)
     - from:
         - podSelector:
             matchLabels:
-              arbit-client: "true"
+              arbitus-client: "true"
       ports:
         - protocol: TCP
           port: 4000

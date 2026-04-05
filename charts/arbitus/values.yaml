@@ -1,6 +1,6 @@
 # ── Image ─────────────────────────────────────────────────────────────────────
 image:
-  repository: ghcr.io/nfvelten/arbit
+  repository: ghcr.io/nfvelten/arbitus
   # Defaults to the chart's appVersion when empty.
   tag: ""
   pullPolicy: IfNotPresent
@@ -18,7 +18,7 @@ config:
     transport:
       type: http
       addr: "0.0.0.0:4000"
-      upstream: "${ARBIT_UPSTREAM_URL}"
+      upstream: "${ARBITUS_UPSTREAM_URL}"
 
     agents: {}
 
@@ -30,25 +30,25 @@ config:
       - type: stdout
 
 # ── Environment variables ─────────────────────────────────────────────────────
-# Injected into the arbit container. Use this to supply secrets referenced
+# Injected into the arbitus container. Use this to supply secrets referenced
 # via ${VAR} in gateway.yml — e.g. from a Kubernetes Secret.
 #
 # Example — reference an existing Secret:
 #   env:
-#     - name: ARBIT_UPSTREAM_URL
+#     - name: ARBITUS_UPSTREAM_URL
 #       valueFrom:
 #         secretKeyRef:
-#           name: arbit-secrets
+#           name: arbitus-secrets
 #           key: upstream-url
-#     - name: ARBIT_ADMIN_TOKEN
+#     - name: ARBITUS_ADMIN_TOKEN
 #       valueFrom:
 #         secretKeyRef:
-#           name: arbit-secrets
+#           name: arbitus-secrets
 #           key: admin-token
 env: []
 
 # Load all keys from an existing Secret as env vars (envFrom).
-# Useful when all ARBIT_* vars live in a single Secret.
+# Useful when all ARBITUS_* vars live in a single Secret.
 existingSecret: ""
 
 # ── Service ───────────────────────────────────────────────────────────────────
@@ -116,15 +116,15 @@ podDisruptionBudget:
   # maxUnavailable: 1
 
 # ── Network Policy ────────────────────────────────────────────────────────────
-# Restricts ingress to pods with the label `arbit-client: "true"`.
+# Restricts ingress to pods with the label `arbitus-client: "true"`.
 networkPolicy:
   enabled: false
   # Additional ingress rules appended to the generated policy.
   additionalIngressRules: []
 
 # ── Sidecar pattern ───────────────────────────────────────────────────────────
-# Add extra containers to the Pod (e.g. the AI agent that calls arbit).
-# These containers share the Pod network — the agent reaches arbit at localhost:4000.
+# Add extra containers to the Pod (e.g. the AI agent that calls arbitus).
+# These containers share the Pod network — the agent reaches arbitus at localhost:4000.
 #
 # Example:
 #   extraContainers:
