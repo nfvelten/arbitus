@@ -217,7 +217,10 @@ mod tests {
     fn blocked_produces_fail_event() {
         let ev = build_run_event(&entry(Outcome::Blocked("rate limit".into())), "arbitus");
         assert_eq!(ev["eventType"], "FAIL");
-        assert_eq!(ev["run"]["facets"]["arbitus:execution"]["outcome"], "blocked");
+        assert_eq!(
+            ev["run"]["facets"]["arbitus:execution"]["outcome"],
+            "blocked"
+        );
         assert_eq!(
             ev["run"]["facets"]["arbitus:execution"]["reason"],
             "rate limit"

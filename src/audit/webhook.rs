@@ -198,7 +198,10 @@ mod tests {
             (Outcome::Allowed, "dev.arbitus.audit.allowed"),
             (Outcome::Forwarded, "dev.arbitus.audit.forwarded"),
             (Outcome::Shadowed, "dev.arbitus.audit.shadowed"),
-            (Outcome::Blocked("x".to_string()), "dev.arbitus.audit.blocked"),
+            (
+                Outcome::Blocked("x".to_string()),
+                "dev.arbitus.audit.blocked",
+            ),
         ];
         for (outcome, expected_type) in cases {
             let body = build_cloudevent(&entry(outcome), "/arbitus");
