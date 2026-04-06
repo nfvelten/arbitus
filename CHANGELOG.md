@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1] — 2026-04-06
+
+### Fixed
+- **Docker build**: install `git` in Alpine builder and include `.git` in the build context so `regorus` build script can run `git rev-parse HEAD` successfully.
+
+---
+
 ## [0.19.0] — 2026-04-05
 
 ### Changed
