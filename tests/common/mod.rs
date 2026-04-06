@@ -200,11 +200,7 @@ impl Harness {
     pub async fn graceful_shutdown(mut self) {
         let pid = self._gw.id().unwrap() as i32;
         unsafe { libc::kill(pid, libc::SIGTERM) };
-        let _ = tokio::time::timeout(
-            std::time::Duration::from_secs(5),
-            self._gw.wait(),
-        )
-        .await;
+        let _ = tokio::time::timeout(std::time::Duration::from_secs(5), self._gw.wait()).await;
     }
 
     /// POST /mcp with an optional session header.
