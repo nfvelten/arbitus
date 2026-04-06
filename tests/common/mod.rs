@@ -212,6 +212,19 @@ impl Harness {
         req.send().await.unwrap()
     }
 
+    /// POST /mcp with a custom `Accept` header and optional session.
+    pub async fn post_accept(&self, session: Option<&str>, accept: &str, body: Value) -> Response {
+        let mut req = self
+            .client
+            .post(self.url("/mcp"))
+            .header("accept", accept)
+            .json(&body);
+        if let Some(s) = session {
+            req = req.header("mcp-session-id", s);
+        }
+        req.send().await.unwrap()
+    }
+
     /// POST and deserialize the JSON body.
     pub async fn json(&self, session: Option<&str>, body: Value) -> Value {
         self.post(session, body).await.json().await.unwrap()
@@ -278,22 +291,27 @@ pub fn notif_body() -> Value {
 /// `config_snippet` provides the `agents:`, `rules:`, and `auth:` sections;
 /// the transport and audit sections are generated automatically.
 pub async fn harness(config_snippet: &str) -> Harness {
-    harness_inner(config_snippet, "type: stdout").await
+    harness_inner(config_snippet, "http", "type: stdout").await
 }
 
 /// Like `harness` but uses SQLite audit writing to `audit_db_path`.
 pub async fn harness_with_db_audit(config_snippet: &str, audit_db_path: &str) -> Harness {
     let audit = format!("type: sqlite\n  path: \"{audit_db_path}\"");
-    harness_inner(config_snippet, &audit).await
+    harness_inner(config_snippet, "http", &audit).await
 }
 
-async fn harness_inner(config_snippet: &str, audit_config: &str) -> Harness {
+/// Like `harness` but uses the Streamable HTTP transport (MCP spec 2025-03-26).
+pub async fn harness_streamable(config_snippet: &str) -> Harness {
+    harness_inner(config_snippet, "streamable_http", "type: stdout").await
+}
+
+async fn harness_inner(config_snippet: &str, transport_type: &str, audit_config: &str) -> Harness {
     let (dummy_port, dummy_abort) = start_dummy().await;
     let gw_port = free_port().await;
 
     let config = format!(
         r#"transport:
-  type: http
+  type: {transport_type}
   addr: "0.0.0.0:{gw_port}"
   upstream: "http://127.0.0.1:{dummy_port}/mcp"
   session_ttl_secs: 3600
