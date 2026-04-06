@@ -111,6 +111,7 @@ dependencies = [
  "hex",
  "jsonschema 0.18.3",
  "jsonwebtoken 10.3.0",
+ "libc",
  "lru",
  "opentelemetry",
  "opentelemetry-otlp",

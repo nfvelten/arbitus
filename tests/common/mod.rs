@@ -194,6 +194,19 @@ impl Harness {
         self._gw.id().unwrap()
     }
 
+    /// Send SIGTERM and wait for the gateway to exit cleanly.
+    /// Use this instead of dropping when you need audit entries flushed to disk
+    /// before querying (SIGKILL in Drop does not give the async writer time to flush).
+    pub async fn graceful_shutdown(mut self) {
+        let pid = self._gw.id().unwrap() as i32;
+        unsafe { libc::kill(pid, libc::SIGTERM) };
+        let _ = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            self._gw.wait(),
+        )
+        .await;
+    }
+
     /// POST /mcp with an optional session header.
     pub async fn post(&self, session: Option<&str>, body: Value) -> Response {
         let mut req = self.client.post(self.url("/mcp")).json(&body);

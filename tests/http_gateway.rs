@@ -983,9 +983,9 @@ rules:
     h.json(Some(&sid), call_body("echo", json!({"text": "dangerword"})))
         .await;
 
-    // Allow async SQLite writes to complete
-    tokio::time::sleep(Duration::from_millis(300)).await;
-    drop(h); // ensure gateway is shut down before querying
+    // Graceful shutdown: SIGTERM lets the async SQLite writer flush before exit.
+    // SIGKILL (used by Drop) races with the audit channel and drops entries on slow CI.
+    h.graceful_shutdown().await;
 
     let conn = rusqlite::Connection::open(&audit_path)
         .expect("audit DB should exist after gateway writes");
