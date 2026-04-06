@@ -3,7 +3,6 @@ target/
 *.pem
 *.key
 *.crt
-.git/
 .github/
 tests/
 assets/

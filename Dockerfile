@@ -2,9 +2,13 @@
 # Uses musl for a fully static binary — no glibc dependency in the runtime image.
 FROM rust:alpine AS builder
 
-RUN apk add --no-cache musl-dev perl make
+RUN apk add --no-cache musl-dev perl make git
 
 WORKDIR /build
+
+# regorus build.rs calls `git rev-parse HEAD` to embed the commit hash.
+# We copy .git so that resolves correctly; it stays in this stage only.
+COPY .git .git
 
 # Cache dependencies before copying source.
 # Stub binaries allow `cargo build` to cache all crate downloads and compilation
