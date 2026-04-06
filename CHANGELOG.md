@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.0] — 2026-04-05
+
+### Changed
+- **Project renamed from `arbit` to `arbitus`**: binary names, crate name, Helm chart, Docker image, and all internal references updated. First release under the new name on crates.io, Docker Hub, and the Helm chart repository.
+
+---
+
 ## [0.18.0] — 2026-04-02
 
 ### Added
