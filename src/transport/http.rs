@@ -2171,4 +2171,54 @@ mod tests {
         assert_eq!(store.resolve(&sid1).await, None);
         assert_eq!(store.resolve(&sid2).await, Some("b".to_string()));
     }
+
+    // ── accepts_event_stream ──────────────────────────────────────────────────
+
+    fn headers_with_accept(value: &str) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        h.insert(
+            axum::http::header::ACCEPT,
+            HeaderValue::from_str(value).unwrap(),
+        );
+        h
+    }
+
+    #[test]
+    fn accepts_event_stream_exact_type() {
+        assert!(accepts_event_stream(&headers_with_accept(
+            "text/event-stream"
+        )));
+    }
+
+    #[test]
+    fn accepts_event_stream_multiple_types_includes_sse() {
+        assert!(accepts_event_stream(&headers_with_accept(
+            "application/json, text/event-stream"
+        )));
+    }
+
+    #[test]
+    fn accepts_event_stream_sse_with_quality_factor() {
+        // q-values are common; we check prefix only (text/event-stream starts the token)
+        assert!(accepts_event_stream(&headers_with_accept(
+            "text/event-stream;q=0.9, application/json"
+        )));
+    }
+
+    #[test]
+    fn accepts_event_stream_false_for_json_only() {
+        assert!(!accepts_event_stream(&headers_with_accept(
+            "application/json"
+        )));
+    }
+
+    #[test]
+    fn accepts_event_stream_false_when_no_accept_header() {
+        assert!(!accepts_event_stream(&HeaderMap::new()));
+    }
+
+    #[test]
+    fn accepts_event_stream_false_for_wildcard_only() {
+        assert!(!accepts_event_stream(&headers_with_accept("*/*")));
+    }
 }
